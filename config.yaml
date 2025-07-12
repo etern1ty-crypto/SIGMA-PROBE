@@ -1,0 +1,294 @@
+# SIGMA-PROBE Helios v2.0 Configuration
+# Архитектура: Модульная, событийно-ориентированная система анализа угроз
+
+# Global settings
+global:
+  log_level: INFO
+  max_workers: 4
+  enable_parallel: true
+
+# Pipeline configuration
+pipeline:
+  stages:
+    - ingestion
+    - enrichment
+    - profiling
+    - detection
+    - metadetection
+    - scoring
+    - reporting
+
+# IoC Feeds Configuration
+ioc_feeds:
+  enabled: true
+  update_interval: 3600  # 1 hour
+  feeds:
+    - name: "malicious_user_agents"
+      url: "https://raw.githubusercontent.com/example/threat-intel/main/malicious_ua.txt"
+      type: "user_agent"
+      enabled: true
+    - name: "suspicious_paths"
+      url: "https://raw.githubusercontent.com/example/threat-intel/main/suspicious_paths.txt"
+      type: "url_path"
+      enabled: true
+    - name: "malicious_ips"
+      url: "https://raw.githubusercontent.com/example/threat-intel/main/malicious_ips.txt"
+      type: "ip_address"
+      enabled: true
+    - name: "lfi_patterns"
+      url: "https://raw.githubusercontent.com/example/threat-intel/main/lfi_patterns.txt"
+      type: "url_pattern"
+      enabled: true
+    - name: "sqli_patterns"
+      url: "https://raw.githubusercontent.com/example/threat-intel/main/sqli_patterns.txt"
+      type: "url_pattern"
+      enabled: true
+    - name: "xss_patterns"
+      url: "https://raw.githubusercontent.com/example/threat-intel/main/xss_patterns.txt"
+      type: "url_pattern"
+      enabled: true
+
+# Ingestion Configuration
+ingestion:
+  input_file: "sample_nginx.log"
+  log_format: "nginx"
+  batch_size: 1000
+  max_events: 10000
+
+# Enrichment Configuration
+enrichment:
+  # Comprehensive enricher that calculates all features
+  comprehensive_enricher:
+    enabled: true
+    calculate_entropy: true
+    calculate_url_features: true
+    apply_heuristics: true
+
+# Profiling Configuration
+profiling:
+  min_events_per_actor: 1
+  group_by_ip: true
+
+# Detection Configuration
+detection:
+  detectors:
+    - FFTDetector
+    - GraphDetector
+    - AnomalyDetector
+    - BehavioralClusteringDetector
+  
+  # Detector-specific settings
+  fft_detector:
+    min_events_for_fft: 10
+    rhythmic_threshold: 2
+  
+  graph_detector:
+    similarity_threshold: 0.3
+    centrality_threshold: 0.3
+  
+  anomaly_detector:
+    anomaly_threshold: 0.7
+    suspicious_threshold: 0.4
+  
+  clustering_detector:
+    eps: 0.5
+    min_samples: 2
+
+# Scoring Configuration - Data-Driven Profiles
+scoring_engine:
+  # Individual tag scoring profiles
+  scoring_profiles:
+    LFI_RFI:
+      base_score: 8.0
+      modifiers:
+        - if: 'high_entropy'
+          value: 1.3
+          evidence: "LFI/RFI with high entropy - likely encoded payload"
+        - if: 'coordinated_attack'
+          value: 1.5
+          evidence: "LFI/RFI as part of coordinated attack"
+    
+    SQL_INJECTION:
+      base_score: 7.5
+      modifiers:
+        - if: 'multiple_attack_types'
+          value: 1.4
+          evidence: "SQL injection combined with other attack types"
+        - if: 'automated_scan'
+          value: 1.2
+          evidence: "Automated SQL injection scanning"
+    
+    XSS:
+      base_score: 6.0
+      modifiers:
+        - if: 'high_entropy'
+          value: 1.2
+          evidence: "XSS with high entropy - likely obfuscated"
+        - if: 'coordinated_attack'
+          value: 1.3
+          evidence: "XSS as part of coordinated attack"
+    
+    COMMAND_INJECTION:
+      base_score: 9.0
+      modifiers:
+        - if: 'multiple_attack_types'
+          value: 1.6
+          evidence: "Command injection combined with other attacks"
+        - if: 'coordinated_attack'
+          value: 1.4
+          evidence: "Command injection in coordinated attack"
+    
+    AUTOMATED_SCAN:
+      base_score: 4.0
+      modifiers:
+        - if: 'fft_is_rhythmic'
+          value: 1.5
+          evidence: "Automated scanning with rhythmic patterns"
+        - if: 'url_diversity_ratio'
+          threshold: 0.8
+          value: 1.3
+          evidence: "Automated scanning with high URL diversity"
+    
+    MANUAL_SCAN:
+      base_score: 3.0
+      modifiers:
+        - if: 'high_entropy'
+          value: 1.2
+          evidence: "Manual scanning with high entropy"
+    
+    COORDINATOR:
+      base_score: 5.0
+      modifiers:
+        - if: 'high_centrality'
+          threshold: 0.5
+          value: 1.4
+          evidence: "High centrality coordinator"
+    
+    COORDINATED_ATTACK:
+      base_score: 6.5
+      modifiers:
+        - if: 'multiple_attack_types'
+          value: 1.5
+          evidence: "Coordinated attack with multiple attack types"
+    
+    ANOMALOUS:
+      base_score: 5.5
+      modifiers:
+        - if: 'multiple_attack_types'
+          value: 1.3
+          evidence: "Anomalous behavior with multiple attack types"
+    
+    SUSPICIOUS:
+      base_score: 3.5
+      modifiers:
+        - if: 'high_entropy'
+          value: 1.2
+          evidence: "Suspicious behavior with high entropy"
+    
+    ISOLATED_ATTACKER:
+      base_score: 4.5
+      modifiers:
+        - if: 'multiple_attack_types'
+          value: 1.4
+          evidence: "Isolated attacker with multiple attack types"
+  
+  # Tag combination scoring
+  tag_combinations:
+    "LFI_RFI+COORDINATED_ATTACK":
+      multiplier: 1.8
+      evidence: "LFI/RFI in coordinated attack - highly dangerous"
+    
+    "SQL_INJECTION+AUTOMATED_SCAN":
+      multiplier: 1.5
+      evidence: "Automated SQL injection scanning"
+    
+    "XSS+MANUAL_SCAN":
+      multiplier: 1.3
+      evidence: "Manual XSS scanning"
+    
+    "COMMAND_INJECTION+COORDINATOR":
+      multiplier: 2.0
+      evidence: "Command injection by coordinator - critical threat"
+    
+    "LFI_RFI+SQL_INJECTION":
+      multiplier: 1.6
+      evidence: "Multiple injection attacks"
+    
+    "AUTOMATED_SCAN+COORDINATOR":
+      multiplier: 1.4
+      evidence: "Automated scanning by coordinator"
+    
+    "ANOMALOUS+COORDINATED_ATTACK":
+      multiplier: 1.7
+      evidence: "Anomalous coordinated attack"
+  
+  # Global modifiers based on threat landscape
+  global_modifiers:
+    large_scale_attack:
+      threshold: 100
+      multiplier: 1.2
+      evidence: "Large-scale attack detected"
+    
+    high_coordination:
+      threshold: 5
+      multiplier: 1.3
+      evidence: "High coordination detected"
+    
+    high_anomaly_rate:
+      threshold: 10
+      multiplier: 1.2
+      evidence: "High anomaly rate detected"
+
+# Campaign Clustering Configuration
+campaign_clustering:
+  method: "behavioral_vector"
+  similarity_threshold: 0.3
+  min_cluster_size: 2
+  max_cluster_size: 50
+
+# Reporting Configuration
+reporting:
+  output_formats:
+    - html
+    - json
+    - text
+  
+  # Evidence trail display settings
+  evidence_trail:
+    enabled: true
+    max_entries_per_actor: 10
+    max_entries_per_campaign: 20
+    include_confidence: true
+    include_timestamps: true
+  
+  # Report sections
+  sections:
+    - summary
+    - threat_actors
+    - campaigns
+    - evidence_trails
+    - recommendations
+  
+  # HTML report styling
+  html:
+    theme: "dark"
+    include_charts: true
+    include_evidence_summary: true
+  
+  # JSON report structure
+  json:
+    include_raw_data: false
+    include_evidence_trails: true
+    pretty_print: true
+  
+  # Text report format
+  text:
+    include_evidence_summary: true
+    max_actors_per_section: 20
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "sigma_probe.log"
+  console: true 
