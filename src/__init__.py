@@ -4,5 +4,5 @@ SIGMA-PROBE v2.0 - 'Helios'
 """
 
 __version__ = "1.0.0"
-__author__ = "SIGMA-PROBE Team"
+__author__ = "eternity-crypto"
 __description__ = "Модульная аналитическая платформа для анализа угроз" 
