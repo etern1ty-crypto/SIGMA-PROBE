@@ -305,8 +305,8 @@ MIT License - см. LICENSE файл для деталей.
 SIGMA-PROBE - это open-source проект, и мы приветствуем вклад сообщества!
 
 - 📖 **[CONTRIBUTING.md](CONTRIBUTING.md)** - Подробное руководство по участию
-- 🐛 **[Issues](https://github.com/your-username/sigma-probe/issues)** - Сообщайте о багах и предлагайте улучшения
-- 💡 **[Discussions](https://github.com/your-username/sigma-probe/discussions)** - Обсуждайте архитектуру и новые возможности
+- 🐛 **[Issues](https://github.com/etern1ty-crypto/SIGMA-PROBE/issues)** - Сообщайте о багах и предлагайте улучшения
+- 💡 **[Discussions](https://github.com/etern1ty-crypto/SIGMA-PROBE/discussions)** - Обсуждайте архитектуру и новые возможности
 
 ### Good First Issues
 
