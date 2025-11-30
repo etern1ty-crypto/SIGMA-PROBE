@@ -10,27 +10,7 @@ from typing import Dict, List, Any, Set
 import logging
 from collections import Counter
 
-from ..models.core import ActorProfile, ThreatCampaign
-from .rules_engine import ScoringRulesEngine
-from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import DBSCAN
-
-logger = logging.getLogger(__name__)
-
-class ScoringEngine:
-"""
-SIGMA-PROBE Scoring Engine
-Архитектура v2.0 - 'Helios'
-
-Принцип 3: Скоринг — это не просто подсчет, это контекстная оценка угроз.
-"""
-
-import numpy as np
-from typing import Dict, List, Any, Set
-import logging
-from collections import Counter
-
-from ..models.core import ActorProfile, ThreatCampaign
+from sigma_probe.models.core import ActorProfile, ThreatCampaign
 from .rules_engine import ScoringRulesEngine
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import DBSCAN

@@ -5,7 +5,7 @@ SIGMA-PROBE Pipeline Architecture
 
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Iterator, Optional
-from src.models.core import LogEvent, ActorProfile, ThreatCampaign, PipelineContext
+from sigma_probe.models.core import LogEvent, ActorProfile, ThreatCampaign, PipelineContext
 
 
 class PipelineStage(ABC):
