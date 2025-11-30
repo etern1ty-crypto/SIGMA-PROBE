@@ -4,7 +4,7 @@ version = "2.0.0"
 description = "Advanced Modular Threat Analysis Framework"
 authors = ["Etern1ty Crypto <contact@etern1ty.crypto>"]
 readme = "README.md"
-packages = [{include = "src"}]
+packages = [{include = "sigma_probe", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
