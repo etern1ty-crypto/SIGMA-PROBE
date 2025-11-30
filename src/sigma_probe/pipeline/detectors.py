@@ -16,21 +16,24 @@ import logging
 from scipy import signal
 from scipy.stats import entropy
 
-from ..models.core import ActorProfile, LogEvent
-from ..pipeline.base import BaseDetector
+from sigma_probe.models.core import ActorProfile, LogEvent
+from sigma_probe.pipeline.base import Detector
 
 logger = logging.getLogger(__name__)
 
-class BaseDetector:
-    """Base class for all detectors"""
+class BaseDetector(Detector):
+    """Base class for all detectors, inheriting from pipeline Detector"""
     
     def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
         self.config = config
         self.name = self.__class__.__name__
     
-    def detect(self, actors: List[ActorProfile], context: Dict[str, Any]) -> Dict[str, Any]:
-        """Detect patterns and return context updates"""
-        raise NotImplementedError
+    def detect(self, actors: Dict[str, ActorProfile]) -> Dict[str, ActorProfile]:
+        """Detect patterns and return updated actors"""
+        # Default implementation just returns actors unchanged
+        # Subclasses should override this
+        return actors
     
     def add_evidence(self, actor: ActorProfile, evidence_type: str, details: str, confidence: float = 1.0) -> None:
         """Add evidence to actor's trail"""
@@ -47,15 +50,18 @@ class FFTDetector(BaseDetector):
         self.window_size = config.get('window_size', 600)  # 10 minutes in seconds
         self.change_threshold = config.get('change_threshold', 5.0)  # 5x change in frequency
         
-    def detect(self, actors: List[ActorProfile], context: Dict[str, Any]) -> Dict[str, Any]:
+    def detect(self, actors: Dict[str, ActorProfile]) -> Dict[str, ActorProfile]:
         """Enhanced detection with multiple temporal analysis methods."""
-        for actor in actors:
+        logger.info(f"Running FFT detection on {len(actors)} actors")
+        
+        for actor in actors.values():
             if len(actor.events) < 10:  # Need sufficient data
                 continue
                 
             # Extract timestamps and calculate intervals
             timestamps = [event.timestamp.timestamp() for event in actor.events]
-            intervals = np.diff(sorted(timestamps))
+            timestamps.sort()
+            intervals = np.diff(timestamps)
             
             if len(intervals) < 5:
                 continue
@@ -74,6 +80,70 @@ class FFTDetector(BaseDetector):
             combined_evidence = fft_evidence + autocorr_evidence + window_evidence
             
             if total_score > 0.5:
+                actor.threat_score = max(actor.threat_score, total_score)
+                actor.add_tag('BOT_BEHAVIOR', self.name)
+                
+                for ev in combined_evidence:
+                    self.add_evidence(
+                        actor,
+                        ev.get('type', 'temporal_anomaly'),
+                        ev.get('description', 'Detected temporal anomaly'),
+                        ev.get('confidence', total_score)
+                    )
+        
+        return actors
+
+    def _analyze_fft(self, intervals: np.ndarray) -> Tuple[float, List[Dict[str, Any]]]:
+        """Traditional FFT analysis for periodic patterns."""
+        try:
+            # Apply FFT
+            fft_result = fft(intervals)
+            fft_magnitude = np.abs(fft_result)
+            
+            # Find peaks in frequency domain
+            peaks, _ = signal.find_peaks(fft_magnitude[:len(fft_magnitude)//2])
+            
+            if len(peaks) >= self.min_peaks:
+                max_peak = np.max(fft_magnitude[peaks]) if len(peaks) > 0 else 0
+                if max_peak > self.peak_threshold * np.max(fft_magnitude):
+                    return 0.8, [{
+                        'source': 'FFTDetector',
+                        'type': 'periodic_pattern',
+                        'confidence': 0.8,
+                        'description': f'Detected {len(peaks)} periodic patterns in request intervals'
+                    }]
+            
+            return 0.0, []
+        except Exception as e:
+            logger.error(f"FFT analysis error: {e}")
+            return 0.0, []
+
+    def _analyze_autocorrelation(self, intervals: np.ndarray) -> Tuple[float, List[Dict[str, Any]]]:
+        """Autocorrelation analysis for periodicity."""
+        try:
+            # Calculate autocorrelation
+            result = np.correlate(intervals, intervals, mode='full')
+            result = result[result.size // 2:]
+            
+            # Find peaks
+            peaks, _ = signal.find_peaks(result)
+            
+            if len(peaks) > 0:
+                return 0.6, [{
+                    'source': 'FFTDetector',
+                    'type': 'autocorrelation_pattern',
+                    'confidence': 0.6,
+                    'description': 'Detected periodicity via autocorrelation'
+                }]
+            
+            return 0.0, []
+        except Exception as e:
+            logger.error(f"Autocorrelation analysis error: {e}")
+            return 0.0, []
+
+    def _analyze_windowed_changes(self, timestamps: List[float]) -> Tuple[float, List[Dict[str, Any]]]:
+        """Analyze changes in request frequency over time windows."""
+        try:
             start_time = min(timestamps)
             end_time = max(timestamps)
             window_count = int((end_time - start_time) / self.window_size)
@@ -93,14 +163,16 @@ class FFTDetector(BaseDetector):
             
             # Calculate frequency changes between consecutive windows
             frequency_changes = np.diff(window_frequencies)
-            max_change = np.max(np.abs(frequency_changes))
-            
-            if max_change > self.change_threshold:
-                return 0.9, [{
-                    'source': 'FFTDetector',
-                    'confidence': 0.9,
-                    'description': f'Detected dramatic frequency change: {max_change:.2f}x between windows'
-                }]
+            if len(frequency_changes) > 0:
+                max_change = np.max(np.abs(frequency_changes))
+                
+                if max_change > self.change_threshold:
+                    return 0.9, [{
+                        'source': 'FFTDetector',
+                        'type': 'frequency_change',
+                        'confidence': 0.9,
+                        'description': f'Detected dramatic frequency change: {max_change:.2f}x between windows'
+                    }]
             
             return 0.0, []
         except Exception as e:
@@ -110,15 +182,16 @@ class FFTDetector(BaseDetector):
 class GraphDetector(BaseDetector):
     """Graph-based detector for coordinated attacks"""
     
-    def detect(self, actors: List[ActorProfile], context: Dict[str, Any]) -> Dict[str, Any]:
+    def detect(self, actors: Dict[str, ActorProfile]) -> Dict[str, ActorProfile]:
         """Detect coordinated patterns using graph analysis"""
-        logger.info(f"Running graph detection on {len(actors)} actors")
+        actor_list = list(actors.values())
+        logger.info(f"Running graph detection on {len(actor_list)} actors")
         
-        if len(actors) < 2:
-            return {}
+        if len(actor_list) < 2:
+            return actors
         
         # Build actor graph
-        G = self._build_actor_graph(actors)
+        G = self._build_actor_graph(actor_list)
         
         # Calculate centrality metrics
         centrality_scores = nx.betweenness_centrality(G)
@@ -128,7 +201,7 @@ class GraphDetector(BaseDetector):
         coordinators = 0
         clusters = 0
         
-        for actor in actors:
+        for actor in actor_list:
             ip = actor.ip_address
             centrality = centrality_scores.get(ip, 0.0)
             clustering = clustering_coeffs.get(ip, 0.0)
@@ -160,19 +233,8 @@ class GraphDetector(BaseDetector):
         # Detect community structure
         communities = list(nx.community.greedy_modularity_communities(G))
         
-        context_update = {
-            'graph_summary': {
-                'total_actors': len(actors),
-                'coordinators': coordinators,
-                'cluster_members': clusters,
-                'communities': len(communities),
-                'avg_centrality': np.mean(list(centrality_scores.values())),
-                'detector': self.name
-            }
-        }
-        
         logger.info(f"Graph detection complete: {coordinators} coordinators, {clusters} cluster members")
-        return context_update
+        return actors
     
     def _build_actor_graph(self, actors: List[ActorProfile]) -> nx.Graph:
         """Build graph of actors based on behavioral similarity"""
@@ -266,18 +328,19 @@ class GraphDetector(BaseDetector):
 class AnomalyDetector(BaseDetector):
     """Anomaly detector for unusual behavior patterns"""
     
-    def detect(self, actors: List[ActorProfile], context: Dict[str, Any]) -> Dict[str, Any]:
+    def detect(self, actors: Dict[str, ActorProfile]) -> Dict[str, ActorProfile]:
         """Detect anomalous behavior patterns"""
-        logger.info(f"Running anomaly detection on {len(actors)} actors")
+        actor_list = list(actors.values())
+        logger.info(f"Running anomaly detection on {len(actor_list)} actors")
         
-        if len(actors) < 3:  # Need multiple actors for comparison
-            return {}
+        if len(actor_list) < 3:  # Need multiple actors for comparison
+            return actors
         
         # Calculate baseline metrics
-        baseline_metrics = self._calculate_baseline_metrics(actors)
+        baseline_metrics = self._calculate_baseline_metrics(actor_list)
         
         anomalies = 0
-        for actor in actors:
+        for actor in actor_list:
             anomaly_score = self._calculate_anomaly_score(actor, baseline_metrics)
             actor.anomaly_ratio = anomaly_score
             
@@ -299,17 +362,8 @@ class AnomalyDetector(BaseDetector):
                     0.6
                 )
         
-        context_update = {
-            'anomaly_summary': {
-                'total_actors': len(actors),
-                'anomalies': anomalies,
-                'anomaly_rate': anomalies / len(actors) if actors else 0.0,
-                'detector': self.name
-            }
-        }
-        
         logger.info(f"Anomaly detection complete: {anomalies} anomalous actors")
-        return context_update
+        return actors
     
     def _calculate_baseline_metrics(self, actors: List[ActorProfile]) -> Dict[str, float]:
         """Calculate baseline metrics from all actors"""
@@ -363,25 +417,26 @@ class AnomalyDetector(BaseDetector):
 class BehavioralClusteringDetector(BaseDetector):
     """Detector for clustering actors based on behavioral vectors"""
     
-    def detect(self, actors: List[ActorProfile], context: Dict[str, Any]) -> Dict[str, Any]:
+    def detect(self, actors: Dict[str, ActorProfile]) -> Dict[str, ActorProfile]:
         """Cluster actors based on behavioral similarity"""
-        logger.info(f"Running behavioral clustering on {len(actors)} actors")
+        actor_list = list(actors.values())
+        logger.info(f"Running behavioral clustering on {len(actor_list)} actors")
         
-        if len(actors) < 2:
-            return {}
+        if len(actor_list) < 2:
+            return actors
         
         # Extract behavioral vectors
         behavioral_vectors = []
         valid_actors = []
         
-        for actor in actors:
+        for actor in actor_list:
             vector = actor.get_behavioral_vector()
             if vector and sum(vector) > 0:  # Only include actors with meaningful behavior
                 behavioral_vectors.append(vector)
                 valid_actors.append(actor)
         
         if len(behavioral_vectors) < 2:
-            return {}
+            return actors
         
         # Normalize vectors
         vectors_array = np.array(behavioral_vectors)
@@ -436,15 +491,5 @@ class BehavioralClusteringDetector(BaseDetector):
                 0.5
             )
         
-        context_update = {
-            'clustering_summary': {
-                'total_actors': len(actors),
-                'clusters': len(clusters),
-                'isolated_actors': len(isolated_actors),
-                'largest_cluster': max(len(cluster) for cluster in clusters.values()) if clusters else 0,
-                'detector': self.name
-            }
-        }
-        
         logger.info(f"Behavioral clustering complete: {len(clusters)} clusters, {len(isolated_actors)} isolated")
-        return context_update 
+        return actors

@@ -10,8 +10,8 @@ import logging
 from typing import Dict, List, Any, Set
 from collections import defaultdict
 
-from ..models.core import ActorProfile, LogEvent
-from ..pipeline.base import BaseDetector
+from sigma_probe.models.core import ActorProfile, LogEvent
+from .detectors import BaseDetector
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +25,10 @@ class MetaDetector(BaseDetector):
         self.confidence_boost = config.get('confidence_boost', 0.2)
         self.confidence_penalty = config.get('confidence_penalty', 0.3)
         
-    def detect(self, actors: List[ActorProfile], context: Dict[str, Any]) -> Dict[str, Any]:
+    def detect(self, actors: Dict[str, ActorProfile]) -> Dict[str, ActorProfile]:
         """Analyze detector outputs and cross-validate findings"""
-        logger.info(f"Running meta-detection on {len(actors)} actors")
+        actor_list = list(actors.values())
+        logger.info(f"Running meta-detection on {len(actor_list)} actors")
         
         meta_analysis_results = {
             'confirmed_threats': 0,
@@ -36,7 +37,7 @@ class MetaDetector(BaseDetector):
             'new_tags_added': 0
         }
         
-        for actor in actors:
+        for actor in actor_list:
             if not actor.evidence_trail:
                 continue
                 
@@ -59,7 +60,7 @@ class MetaDetector(BaseDetector):
                 self._add_meta_evidence(actor, confirmations, contradictions)
         
         logger.info(f"Meta-detection complete: {meta_analysis_results}")
-        return {'meta_analysis': meta_analysis_results}
+        return actors
     
     def _find_confirmations(self, actor: ActorProfile) -> List[Dict]:
         """Find confirming evidence patterns"""
@@ -246,4 +247,4 @@ class MetaDetector(BaseDetector):
                 'source': 'MetaDetector',
                 'confidence': 0.8,
                 'description': f'Resolved {len(contradictions)} contradictory indicators'
-            }) 
+            })

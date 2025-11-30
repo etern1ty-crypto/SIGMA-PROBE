@@ -8,8 +8,8 @@ from datetime import datetime
 from typing import Dict, List, Any, Iterator
 from urllib.parse import urlparse, parse_qs
 from ipaddress import IPv4Address
-from src.models.core import LogEvent, PipelineContext
-from src.pipeline.base import PipelineStage
+from sigma_probe.models.core import LogEvent, PipelineContext
+from sigma_probe.pipeline.base import PipelineStage
 
 
 class LogIngestionStage(PipelineStage):
@@ -150,4 +150,4 @@ class LogIngestionStage(PipelineStage):
             return f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
         except Exception:
             # Если не удалось распарсить, возвращаем как есть
-            return url_raw 
+            return url_raw

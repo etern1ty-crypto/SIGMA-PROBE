@@ -6,8 +6,8 @@
 from datetime import datetime
 from typing import Dict, List, Any
 from collections import defaultdict
-from src.models.core import LogEvent, ActorProfile, PipelineContext
-from src.pipeline.base import PipelineStage
+from sigma_probe.models.core import LogEvent, ActorProfile, PipelineContext
+from sigma_probe.pipeline.base import PipelineStage
 
 
 class ActorProfilingStage(PipelineStage):
@@ -118,4 +118,4 @@ class ActorEnrichmentStage(PipelineStage):
         user_agents = [event.user_agent for event in events]
         unique_agents = len(set(user_agents))
         actor.behavioral_signatures['unique_user_agents'] = unique_agents
-        actor.behavioral_signatures['user_agent_diversity'] = unique_agents / max(len(user_agents), 1) 
+        actor.behavioral_signatures['user_agent_diversity'] = unique_agents / max(len(user_agents), 1)
