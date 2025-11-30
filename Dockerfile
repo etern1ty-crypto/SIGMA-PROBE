@@ -44,4 +44,4 @@ USER sigma
 ENV PYTHONUNBUFFERED=1
 
 # Entry point
-CMD ["python", "-m", "src.main"]
+CMD ["python", "-m", "sigma_probe.main"]

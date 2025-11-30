@@ -17,31 +17,31 @@ def test_imports():
     print("🔍 Testing imports...")
     
     try:
-        from models.core import LogEvent, ActorProfile, ThreatCampaign
+        from sigma_probe.models.core import LogEvent, ActorProfile, ThreatCampaign
         print("✅ Core models imported successfully")
         
-        from pipeline.ingestion import LogIngestionStage
+        from sigma_probe.pipeline.ingestion import LogIngestionStage
         print("✅ Ingestion stage imported successfully")
         
-        from pipeline.enrichment import EnrichmentStage
+        from sigma_probe.pipeline.enrichment import EnrichmentStage
         print("✅ Enrichment stage imported successfully")
         
-        from pipeline.profiling import ActorProfilingStage
+        from sigma_probe.pipeline.profiling import ActorProfilingStage
         print("✅ Profiling stage imported successfully")
         
-        from pipeline.detectors import FFTDetector, GraphDetector, AnomalyDetector, BehavioralClusteringDetector
+        from sigma_probe.pipeline.detectors import FFTDetector, GraphDetector, AnomalyDetector, BehavioralClusteringDetector
         print("✅ Detectors imported successfully")
         
-        from pipeline.rules_engine import ScoringRulesEngine
+        from sigma_probe.pipeline.rules_engine import ScoringRulesEngine
         print("✅ Rules engine imported successfully")
         
-        from pipeline.scoring import ScoringEngine
+        from sigma_probe.pipeline.scoring import ScoringEngine
         print("✅ Scoring engine imported successfully")
         
-        from pipeline.reporting import ReportingStage
+        from sigma_probe.pipeline.reporting import ReportingStage
         print("✅ Reporting stage imported successfully")
         
-        from main import HeliosPipeline
+        from sigma_probe.main import HeliosPipeline
         print("✅ Main pipeline imported successfully")
         
         return True
@@ -55,7 +55,7 @@ def test_data_models():
     print("\n🔍 Testing data models...")
     
     try:
-        from models.core import LogEvent, ActorProfile
+        from sigma_probe.models.core import LogEvent, ActorProfile
         from datetime import datetime
         
         # Test LogEvent with feature calculation
@@ -98,8 +98,8 @@ def test_rules_engine():
     print("\n🔍 Testing rules engine...")
     
     try:
-        from pipeline.rules_engine import ScoringRulesEngine
-        from models.core import ActorProfile
+        from sigma_probe.pipeline.rules_engine import ScoringRulesEngine
+        from sigma_probe.models.core import ActorProfile
         
         # Test configuration
         config = {
@@ -208,7 +208,7 @@ def test_pipeline_initialization():
     print("\n🔍 Testing pipeline initialization...")
     
     try:
-        from main import HeliosPipeline
+        from sigma_probe.main import HeliosPipeline
         
         pipeline = HeliosPipeline()
         print("✅ Pipeline initialized successfully")
@@ -286,7 +286,7 @@ def main():
     if passed == total:
         print("🎉 All tests passed! System is ready to use.")
         print("\nTo run the full analysis:")
-        print("  python -m src.main")
+        print("  python -m sigma_probe.main")
         print("\nTo run unit tests:")
         print("  python -m pytest tests/")
     else:
@@ -296,4 +296,4 @@ def main():
     return 0
 
 if __name__ == "__main__":
-    exit(main()) 
+    exit(main())
