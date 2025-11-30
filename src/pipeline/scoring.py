@@ -18,6 +18,26 @@ from sklearn.cluster import DBSCAN
 logger = logging.getLogger(__name__)
 
 class ScoringEngine:
+"""
+SIGMA-PROBE Scoring Engine
+Архитектура v2.0 - 'Helios'
+
+Принцип 3: Скоринг — это не просто подсчет, это контекстная оценка угроз.
+"""
+
+import numpy as np
+from typing import Dict, List, Any, Set
+import logging
+from collections import Counter
+
+from ..models.core import ActorProfile, ThreatCampaign
+from .rules_engine import ScoringRulesEngine
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import DBSCAN
+
+logger = logging.getLogger(__name__)
+
+class ScoringEngine:
     """Simplified scoring engine that orchestrates the scoring process"""
     
     def __init__(self, config: Dict[str, Any]):
@@ -25,7 +45,16 @@ class ScoringEngine:
         self.rules_engine = ScoringRulesEngine(config)
         
     def score_actors(self, actors: List[ActorProfile], context: Dict[str, Any]) -> List[ActorProfile]:
-        """Score actors using the rules engine"""
+        """
+        Score actors using the rules engine.
+        
+        Args:
+            actors: List of ActorProfile objects to score.
+            context: Global context dictionary.
+            
+        Returns:
+            List of scored ActorProfile objects.
+        """
         logger.info(f"Scoring {len(actors)} actors with rules engine")
         
         for actor in actors:
@@ -55,7 +84,16 @@ class ScoringEngine:
         return actors
     
     def cluster_campaigns(self, actors: List[ActorProfile], context: Dict[str, Any]) -> List[ThreatCampaign]:
-        """Cluster actors into campaigns using behavioral vectors"""
+        """
+        Cluster actors into campaigns using behavioral vectors.
+        
+        Args:
+            actors: List of ActorProfile objects.
+            context: Global context dictionary.
+            
+        Returns:
+            List of ThreatCampaign objects.
+        """
         logger.info(f"Clustering {len(actors)} actors into campaigns")
         
         if len(actors) < 2:
@@ -148,4 +186,4 @@ class ScoringEngine:
             campaigns.append(campaign)
         
         logger.info(f"Created {len(campaigns)} campaigns from {len(actors)} actors")
-        return campaigns 
+        return campaigns

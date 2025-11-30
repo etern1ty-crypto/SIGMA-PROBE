@@ -9,7 +9,7 @@ import numpy as np
 from scipy.fft import fft
 from scipy.spatial.distance import cosine
 import networkx as nx
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
 import logging
@@ -74,68 +74,6 @@ class FFTDetector(BaseDetector):
             combined_evidence = fft_evidence + autocorr_evidence + window_evidence
             
             if total_score > 0.5:
-                actor.tags.add('BOT_ACTIVITY')
-                actor.evidence_trail.extend(combined_evidence)
-                logger.info(f"FFTDetector: Actor {actor.ip} flagged as bot (score: {total_score:.2f})")
-                
-        return {}
-    
-    def _analyze_fft(self, intervals: np.ndarray) -> tuple[float, List[Dict]]:
-        """Traditional FFT analysis for periodic patterns."""
-        try:
-            # Apply FFT
-            fft_result = np.fft.fft(intervals)
-            fft_magnitude = np.abs(fft_result)
-            
-            # Find peaks in frequency domain
-            peaks, _ = signal.find_peaks(fft_magnitude[:len(fft_magnitude)//2])
-            
-            if len(peaks) >= self.min_peaks:
-                max_peak = np.max(fft_magnitude[peaks])
-                if max_peak > self.peak_threshold * np.max(fft_magnitude):
-                    return 0.8, [{
-                        'source': 'FFTDetector',
-                        'confidence': 0.8,
-                        'description': f'Detected {len(peaks)} periodic patterns in request intervals'
-                    }]
-            
-            return 0.0, []
-        except Exception as e:
-            logger.error(f"FFT analysis error: {e}")
-            return 0.0, []
-    
-    def _analyze_autocorrelation(self, intervals: np.ndarray) -> tuple[float, List[Dict]]:
-        """Autocorrelation analysis for non-strict periodic patterns."""
-        try:
-            # Calculate autocorrelation
-            autocorr = np.correlate(intervals, intervals, mode='full')
-            autocorr = autocorr[len(autocorr)//2:]
-            
-            # Normalize
-            autocorr = autocorr / autocorr[0]
-            
-            # Look for significant correlations beyond lag 1
-            significant_lags = np.where(autocorr[1:20] > self.autocorr_threshold)[0]
-            
-            if len(significant_lags) > 0:
-                return 0.7, [{
-                    'source': 'FFTDetector',
-                    'confidence': 0.7,
-                    'description': f'Detected autocorrelation at lags {significant_lags[:3].tolist()}'
-                }]
-            
-            return 0.0, []
-        except Exception as e:
-            logger.error(f"Autocorrelation analysis error: {e}")
-            return 0.0, []
-    
-    def _analyze_windowed_changes(self, timestamps: List[float]) -> tuple[float, List[Dict]]:
-        """Analyze frequency changes across time windows."""
-        try:
-            if len(timestamps) < self.window_size * 2:
-                return 0.0, []
-            
-            # Create time windows
             start_time = min(timestamps)
             end_time = max(timestamps)
             window_count = int((end_time - start_time) / self.window_size)
