@@ -170,39 +170,6 @@ class LogEvent(BaseModel):
         
         # Set overall suspicious flag
         self.is_suspicious = len(self.heuristic_flags) > 0
-
-class ActorProfile(BaseModel):
-    """Enhanced actor profile with tagging system and evidence trail"""
-    ip_address: str
-    events: List[LogEvent] = Field(default_factory=list)
-    
-    # Behavioral metrics
-    total_requests: int = 0
-    unique_urls: int = 0
-    avg_entropy: float = 0.0
-    max_entropy: float = 0.0
-    url_diversity_ratio: float = 0.0
-    anomaly_ratio: float = 0.0
-    centrality: float = 0.0
-    
-    # Tagging system instead of single tactic
-    tags: Set[str] = Field(default_factory=set)
-    
-    # Evidence trail for traceability
-    evidence_trail: List[Dict[str, Any]] = Field(default_factory=list)
-    
-    # Behavioral vector for clustering
-    url_frequency_vector: Dict[str, float] = Field(default_factory=dict)
-    
-    def add_event(self, event: LogEvent) -> None:
-        """Add event and update metrics"""
-        self.events.append(event)
-        self._update_metrics()
-    
-    def _update_metrics(self) -> None:
-        """Update all metrics based on current events"""
-        if not self.events:
-            return
         
         self.total_requests = len(self.events)
         
