@@ -6,8 +6,8 @@ import pytest
 from datetime import datetime
 from unittest.mock import Mock
 
-from src.models.core import ActorProfile, LogEvent
-from src.pipeline.rules_engine import ScoringRulesEngine
+from sigma_probe.models.core import ActorProfile, LogEvent
+from sigma_probe.pipeline.rules_engine import ScoringRulesEngine
 
 class TestScoringRulesEngine:
     """Test cases for ScoringRulesEngine"""

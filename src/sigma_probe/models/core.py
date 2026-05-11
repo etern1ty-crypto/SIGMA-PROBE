@@ -120,13 +120,19 @@ class LogEvent(BaseModel):
                 self.heuristic_flags.add('XSS')
                 break
         
-        # Command injection patterns
+        # Command injection patterns. Two flavours:
+        # 1. Shell metacharacters followed by a command name.
+        # 2. Sensitive system paths or recognisable command tokens appearing
+        #    in URL parameters (common in vulnerable cgi/exec endpoints, e.g.
+        #    /exec.php?cmd=cat /etc/passwd).
         cmd_patterns = [
-            r'(\||&|;|`|\\$\(|\$\{).*?(cat|ls|pwd|whoami|id)',
-            r'(\||&|;|`|\\$\(|\$\{).*?(wget|curl|nc|telnet)',
-            r'(\||&|;|`|\\$\(|\$\{).*?(rm|del|format)'
+            r'(\||&|;|`|\$\(|\$\{)\s*(cat|ls|pwd|whoami|id|uname)\b',
+            r'(\||&|;|`|\$\(|\$\{)\s*(wget|curl|nc|telnet|bash|sh)\b',
+            r'(\||&|;|`|\$\(|\$\{)\s*(rm|del|format|chmod|chown)\b',
+            r'/etc/passwd|/etc/shadow|/proc/self/environ',
+            r'\b(cat|ls|whoami|uname)\b\s+/[A-Za-z]',
         ]
-        
+
         for pattern in cmd_patterns:
             if re.search(pattern, self.url, re.IGNORECASE):
                 self.heuristic_flags.add('COMMAND_INJECTION')
@@ -198,8 +204,14 @@ class ActorProfile(BaseModel):
     behavioral_signatures: Dict[str, Any] = Field(default_factory=dict)
 
     def add_event(self, event: LogEvent) -> None:
-        """Add an event to the profile"""
+        """Add an event to the profile and refresh aggregate metrics.
+
+        Keeping metrics in sync here avoids consumers having to remember to
+        call ``calculate_metrics`` after every append, which was a frequent
+        source of stale-state bugs in earlier versions.
+        """
         self.events.append(event)
+        self.calculate_metrics()
 
     def calculate_metrics(self) -> None:
         """Calculate behavioral metrics"""

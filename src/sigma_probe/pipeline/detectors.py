@@ -1,495 +1,401 @@
 """
 SIGMA-PROBE Detection Engine
-Архитектура v2.0 - 'Helios'
+Архитектура v2.0 — 'Helios'.
 
-Принцип 2: Детекторы — это не просто анализаторы, это "глаза" системы.
+Each detector inspects a collection of :class:`ActorProfile` instances and
+returns a ``context_update`` dict that summarises what it found. Detectors
+mutate the actors in place (adding tags / evidence) and never return the
+actors themselves — the caller already has them.
+
+The accepted ``actors`` argument is intentionally permissive: it can be a
+mapping keyed by IP (legacy pipeline call site) or any iterable of actors
+(unit tests, ad-hoc callers).
 """
 
-import numpy as np
-from scipy.fft import fft
-from scipy.spatial.distance import cosine
-import networkx as nx
-from typing import Dict, List, Any, Optional, Tuple
-from sklearn.cluster import DBSCAN
-from sklearn.preprocessing import StandardScaler
-import logging
-from scipy import signal
-from scipy.stats import entropy
+from __future__ import annotations
 
-from sigma_probe.models.core import ActorProfile, LogEvent
+import logging
+from typing import Any, Dict, Iterable, List, Optional, Union
+
+import networkx as nx
+import numpy as np
+
+from sigma_probe.models.core import ActorProfile
 from sigma_probe.pipeline.base import Detector
 
 logger = logging.getLogger(__name__)
 
+ActorInput = Union[Dict[str, ActorProfile], Iterable[ActorProfile]]
+
+
+def _normalize_actors(actors: ActorInput) -> List[ActorProfile]:
+    """Accept either a dict-by-IP or any iterable and return a flat list."""
+    if isinstance(actors, dict):
+        return list(actors.values())
+    return list(actors)
+
+
+# URLs commonly probed by humans poking at a target before launching a real
+# attack. Used by FFTDetector for the "manual scanning" path where the actor
+# has too few events for spectral analysis but their URL pattern is itself
+# suspicious.
+MANUAL_SCAN_URLS = (
+    "/admin",
+    "/login",
+    "/wp-admin",
+    "/phpmyadmin",
+    "/config",
+    "/.env",
+    "/.git",
+)
+
+
 class BaseDetector(Detector):
-    """Base class for all detectors, inheriting from pipeline Detector"""
-    
+    """Common helpers for all detectors."""
+
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         self.config = config
         self.name = self.__class__.__name__
-    
-    def detect(self, actors: Dict[str, ActorProfile]) -> Dict[str, ActorProfile]:
-        """Detect patterns and return updated actors"""
-        # Default implementation just returns actors unchanged
-        # Subclasses should override this
-        return actors
-    
-    def add_evidence(self, actor: ActorProfile, evidence_type: str, details: str, confidence: float = 1.0) -> None:
-        """Add evidence to actor's trail"""
+
+    def detect(
+        self,
+        actors: ActorInput,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Default: do nothing, return empty context update."""
+        return {}
+
+    def add_evidence(
+        self,
+        actor: ActorProfile,
+        evidence_type: str,
+        details: str,
+        confidence: float = 1.0,
+    ) -> None:
         actor.add_evidence(self.name, evidence_type, details, confidence)
 
+
 class FFTDetector(BaseDetector):
-    """Enhanced FFT detector with adaptive temporal analysis for sophisticated bots."""
-    
+    """Detect rhythmic (automated) and manual scanning patterns.
+
+    The rhythmic path uses interval-of-arrival variance: actors with at
+    least ``min_events_for_fft`` events whose request intervals cluster
+    tightly around a single value are flagged as ``AUTOMATED_SCAN``. The
+    manual path catches smaller actors whose URL set overlaps a known list
+    of admin / probe paths and tags them ``MANUAL_SCAN``.
+    """
+
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        self.min_peaks = config.get('min_peaks', 3)
-        self.peak_threshold = config.get('peak_threshold', 0.1)
-        self.autocorr_threshold = config.get('autocorr_threshold', 0.3)
-        self.window_size = config.get('window_size', 600)  # 10 minutes in seconds
-        self.change_threshold = config.get('change_threshold', 5.0)  # 5x change in frequency
-        
-    def detect(self, actors: Dict[str, ActorProfile]) -> Dict[str, ActorProfile]:
-        """Enhanced detection with multiple temporal analysis methods."""
-        logger.info(f"Running FFT detection on {len(actors)} actors")
-        
-        for actor in actors.values():
-            if len(actor.events) < 10:  # Need sufficient data
-                continue
-                
-            # Extract timestamps and calculate intervals
-            timestamps = [event.timestamp.timestamp() for event in actor.events]
-            timestamps.sort()
-            intervals = np.diff(timestamps)
-            
-            if len(intervals) < 5:
-                continue
-                
-            # Method 1: Traditional FFT analysis
-            fft_score, fft_evidence = self._analyze_fft(intervals)
-            
-            # Method 2: Autocorrelation analysis
-            autocorr_score, autocorr_evidence = self._analyze_autocorrelation(intervals)
-            
-            # Method 3: Windowed change analysis
-            window_score, window_evidence = self._analyze_windowed_changes(timestamps)
-            
-            # Combine evidence and determine final score
-            total_score = max(fft_score, autocorr_score, window_score)
-            combined_evidence = fft_evidence + autocorr_evidence + window_evidence
-            
-            if total_score > 0.5:
-                actor.threat_score = max(actor.threat_score, total_score)
-                actor.add_tag('BOT_BEHAVIOR', self.name)
-                
-                for ev in combined_evidence:
-                    self.add_evidence(
-                        actor,
-                        ev.get('type', 'temporal_anomaly'),
-                        ev.get('description', 'Detected temporal anomaly'),
-                        ev.get('confidence', total_score)
-                    )
-        
-        return actors
+        self.min_events_for_fft = int(config.get("min_events_for_fft", 10))
+        # Coefficient-of-variation threshold below which intervals are
+        # considered rhythmic. Low CV ⇒ near-constant cadence ⇒ bot.
+        self.rhythmic_cv_threshold = float(config.get("rhythmic_cv_threshold", 0.15))
+        # Minimum number of suspicious URLs an actor must hit to count
+        # as a manual scan.
+        self.manual_scan_min_hits = int(config.get("manual_scan_min_hits", 3))
 
-    def _analyze_fft(self, intervals: np.ndarray) -> Tuple[float, List[Dict[str, Any]]]:
-        """Traditional FFT analysis for periodic patterns."""
-        try:
-            # Apply FFT
-            fft_result = fft(intervals)
-            fft_magnitude = np.abs(fft_result)
-            
-            # Find peaks in frequency domain
-            peaks, _ = signal.find_peaks(fft_magnitude[:len(fft_magnitude)//2])
-            
-            if len(peaks) >= self.min_peaks:
-                max_peak = np.max(fft_magnitude[peaks]) if len(peaks) > 0 else 0
-                if max_peak > self.peak_threshold * np.max(fft_magnitude):
-                    return 0.8, [{
-                        'source': 'FFTDetector',
-                        'type': 'periodic_pattern',
-                        'confidence': 0.8,
-                        'description': f'Detected {len(peaks)} periodic patterns in request intervals'
-                    }]
-            
-            return 0.0, []
-        except Exception as e:
-            logger.error(f"FFT analysis error: {e}")
-            return 0.0, []
+    def detect(
+        self,
+        actors: ActorInput,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        actor_list = _normalize_actors(actors)
+        rhythmic = 0
+        manual = 0
 
-    def _analyze_autocorrelation(self, intervals: np.ndarray) -> Tuple[float, List[Dict[str, Any]]]:
-        """Autocorrelation analysis for periodicity."""
-        try:
-            # Calculate autocorrelation
-            result = np.correlate(intervals, intervals, mode='full')
-            result = result[result.size // 2:]
-            
-            # Find peaks
-            peaks, _ = signal.find_peaks(result)
-            
-            if len(peaks) > 0:
-                return 0.6, [{
-                    'source': 'FFTDetector',
-                    'type': 'autocorrelation_pattern',
-                    'confidence': 0.6,
-                    'description': 'Detected periodicity via autocorrelation'
-                }]
-            
-            return 0.0, []
-        except Exception as e:
-            logger.error(f"Autocorrelation analysis error: {e}")
-            return 0.0, []
+        for actor in actor_list:
+            event_count = len(actor.events)
 
-    def _analyze_windowed_changes(self, timestamps: List[float]) -> Tuple[float, List[Dict[str, Any]]]:
-        """Analyze changes in request frequency over time windows."""
-        try:
-            start_time = min(timestamps)
-            end_time = max(timestamps)
-            window_count = int((end_time - start_time) / self.window_size)
-            
-            if window_count < 2:
-                return 0.0, []
-            
-            window_frequencies = []
-            for i in range(window_count):
-                window_start = start_time + i * self.window_size
-                window_end = window_start + self.window_size
-                
-                # Count events in window
-                events_in_window = sum(1 for ts in timestamps if window_start <= ts < window_end)
-                frequency = events_in_window / self.window_size
-                window_frequencies.append(frequency)
-            
-            # Calculate frequency changes between consecutive windows
-            frequency_changes = np.diff(window_frequencies)
-            if len(frequency_changes) > 0:
-                max_change = np.max(np.abs(frequency_changes))
-                
-                if max_change > self.change_threshold:
-                    return 0.9, [{
-                        'source': 'FFTDetector',
-                        'type': 'frequency_change',
-                        'confidence': 0.9,
-                        'description': f'Detected dramatic frequency change: {max_change:.2f}x between windows'
-                    }]
-            
-            return 0.0, []
-        except Exception as e:
-            logger.error(f"Windowed analysis error: {e}")
-            return 0.0, []
+            if event_count >= self.min_events_for_fft:
+                timestamps = sorted(e.timestamp.timestamp() for e in actor.events)
+                intervals = np.diff(np.asarray(timestamps, dtype=float))
+                if intervals.size and intervals.mean() > 0:
+                    cv = float(intervals.std() / intervals.mean())
+                    if cv < self.rhythmic_cv_threshold:
+                        actor.add_tag("AUTOMATED_SCAN", self.name)
+                        self.add_evidence(
+                            actor,
+                            "rhythmic_pattern",
+                            f"Near-constant request interval (cv={cv:.3f})",
+                            confidence=0.9,
+                        )
+                        rhythmic += 1
+                        continue
+
+            # Manual scanning path: small number of events targeting known
+            # admin paths.
+            hits = sum(
+                1
+                for event in actor.events
+                if any(path in event.url.lower() for path in MANUAL_SCAN_URLS)
+            )
+            if hits >= self.manual_scan_min_hits:
+                actor.add_tag("MANUAL_SCAN", self.name)
+                self.add_evidence(
+                    actor,
+                    "manual_scan",
+                    f"Probed {hits} known admin/config paths",
+                    confidence=0.7,
+                )
+                manual += 1
+
+        return {
+            "fft_summary": {
+                "total_actors": len(actor_list),
+                "total_rhythmic_actors": rhythmic,
+                "total_manual_actors": manual,
+            }
+        }
+
 
 class GraphDetector(BaseDetector):
-    """Graph-based detector for coordinated attacks"""
-    
-    def detect(self, actors: Dict[str, ActorProfile]) -> Dict[str, ActorProfile]:
-        """Detect coordinated patterns using graph analysis"""
-        actor_list = list(actors.values())
-        logger.info(f"Running graph detection on {len(actor_list)} actors")
-        
+    """Coordination-via-similarity detector.
+
+    Builds an undirected actor graph weighted by behavioural similarity
+    (URL overlap + timing + user agent), then tags actors using standard
+    centrality / clustering metrics.
+    """
+
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
+        self.similarity_threshold = float(config.get("similarity_threshold", 0.3))
+        self.centrality_threshold = float(config.get("centrality_threshold", 0.3))
+        self.clustering_threshold = float(config.get("clustering_threshold", 0.5))
+
+    def detect(
+        self,
+        actors: ActorInput,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        actor_list = _normalize_actors(actors)
         if len(actor_list) < 2:
-            return actors
-        
-        # Build actor graph
-        G = self._build_actor_graph(actor_list)
-        
-        # Calculate centrality metrics
-        centrality_scores = nx.betweenness_centrality(G)
-        clustering_coeffs = nx.clustering(G)
-        
-        # Detect coordinators and clusters
+            return {}
+
+        graph = self._build_actor_graph(actor_list)
+        centrality_scores = nx.betweenness_centrality(graph) if graph.number_of_nodes() else {}
+        clustering_coeffs = nx.clustering(graph) if graph.number_of_nodes() else {}
+
         coordinators = 0
-        clusters = 0
-        
+        cluster_members = 0
+        centralities: List[float] = []
+
         for actor in actor_list:
             ip = actor.ip_address
-            centrality = centrality_scores.get(ip, 0.0)
-            clustering = clustering_coeffs.get(ip, 0.0)
-            
+            centrality = float(centrality_scores.get(ip, 0.0))
+            clustering = float(clustering_coeffs.get(ip, 0.0))
             actor.centrality = centrality
-            
-            # Detect coordinators (high centrality, low clustering)
-            if centrality > 0.3 and clustering < 0.3:
+            centralities.append(centrality)
+
+            if centrality > self.centrality_threshold and clustering < self.clustering_threshold:
                 coordinators += 1
-                actor.add_tag('COORDINATOR', self.name)
+                actor.add_tag("COORDINATOR", self.name)
                 self.add_evidence(
                     actor,
                     "coordinator_detected",
                     f"High centrality ({centrality:.3f}), low clustering ({clustering:.3f})",
-                    0.7
+                    confidence=0.7,
                 )
-            
-            # Detect cluster members (high clustering)
-            elif clustering > 0.5:
-                clusters += 1
-                actor.add_tag('CLUSTER_MEMBER', self.name)
+            elif clustering > self.clustering_threshold:
+                cluster_members += 1
+                actor.add_tag("CLUSTER_MEMBER", self.name)
                 self.add_evidence(
                     actor,
                     "cluster_member_detected",
                     f"High clustering coefficient ({clustering:.3f})",
-                    0.6
+                    confidence=0.6,
                 )
-        
-        # Detect community structure
-        communities = list(nx.community.greedy_modularity_communities(G))
-        
-        logger.info(f"Graph detection complete: {coordinators} coordinators, {clusters} cluster members")
-        return actors
-    
+
+        return {
+            "graph_summary": {
+                "total_actors": len(actor_list),
+                "coordinators": coordinators,
+                "cluster_members": cluster_members,
+                "avg_centrality": float(np.mean(centralities)) if centralities else 0.0,
+            }
+        }
+
     def _build_actor_graph(self, actors: List[ActorProfile]) -> nx.Graph:
-        """Build graph of actors based on behavioral similarity"""
-        G = nx.Graph()
-        
-        # Add nodes
+        graph = nx.Graph()
         for actor in actors:
-            G.add_node(actor.ip_address)
-        
-        # Add edges based on behavioral similarity
+            graph.add_node(actor.ip_address)
+
         for i, actor1 in enumerate(actors):
-            for j, actor2 in enumerate(actors[i+1:], i+1):
-                similarity = self._calculate_behavioral_similarity(actor1, actor2)
-                
-                if similarity > 0.3:  # Threshold for edge creation
-                    G.add_edge(actor1.ip_address, actor2.ip_address, weight=similarity)
-        
-        return G
-    
-    def _calculate_behavioral_similarity(self, actor1: ActorProfile, actor2: ActorProfile) -> float:
-        """Calculate behavioral similarity between two actors"""
-        # URL overlap
-        urls1 = set(event.url for event in actor1.events)
-        urls2 = set(event.url for event in actor2.events)
-        
-        if not urls1 or not urls2:
+            for actor2 in actors[i + 1:]:
+                similarity = self._behavioural_similarity(actor1, actor2)
+                if similarity > self.similarity_threshold:
+                    graph.add_edge(
+                        actor1.ip_address, actor2.ip_address, weight=similarity
+                    )
+        return graph
+
+    @staticmethod
+    def _behavioural_similarity(a: ActorProfile, b: ActorProfile) -> float:
+        urls_a = {event.url for event in a.events}
+        urls_b = {event.url for event in b.events}
+        if not urls_a or not urls_b:
             return 0.0
-        
-        url_overlap = len(urls1.intersection(urls2)) / len(urls1.union(urls2))
-        
-        # Timing similarity
-        timing_similarity = self._calculate_timing_similarity(actor1, actor2)
-        
-        # User agent similarity
-        ua_similarity = self._calculate_ua_similarity(actor1, actor2)
-        
-        # Weighted combination
-        similarity = 0.5 * url_overlap + 0.3 * timing_similarity + 0.2 * ua_similarity
-        
-        return similarity
-    
-    def _calculate_timing_similarity(self, actor1: ActorProfile, actor2: ActorProfile) -> float:
-        """Calculate timing similarity between actors"""
-        if not actor1.events or not actor2.events:
-            return 0.0
-        
-        # Compare request intervals
-        intervals1 = self._get_request_intervals(actor1.events)
-        intervals2 = self._get_request_intervals(actor2.events)
-        
-        if not intervals1 or not intervals2:
-            return 0.0
-        
-        # Compare average intervals
-        avg1 = np.mean(intervals1)
-        avg2 = np.mean(intervals2)
-        
-        if avg1 == 0 or avg2 == 0:
-            return 0.0
-        
-        # Normalized difference
-        diff = abs(avg1 - avg2) / max(avg1, avg2)
-        return 1.0 - min(diff, 1.0)
-    
-    def _get_request_intervals(self, events: List[LogEvent]) -> List[float]:
-        """Get intervals between consecutive requests"""
-        timestamps = [event.timestamp.timestamp() for event in events]
-        timestamps.sort()
-        
-        intervals = []
-        for i in range(len(timestamps) - 1):
-            interval = timestamps[i+1] - timestamps[i]
-            if interval > 0:
-                intervals.append(interval)
-        
-        return intervals
-    
-    def _calculate_ua_similarity(self, actor1: ActorProfile, actor2: ActorProfile) -> float:
-        """Calculate user agent similarity"""
-        ua1 = set(event.user_agent for event in actor1.events if event.user_agent)
-        ua2 = set(event.user_agent for event in actor2.events if event.user_agent)
-        
-        if not ua1 or not ua2:
-            return 0.0
-        
-        intersection = len(ua1.intersection(ua2))
-        union = len(ua1.union(ua2))
-        
-        return intersection / union if union > 0 else 0.0
+        url_jaccard = len(urls_a & urls_b) / len(urls_a | urls_b)
+
+        ua_a = {event.user_agent for event in a.events if event.user_agent}
+        ua_b = {event.user_agent for event in b.events if event.user_agent}
+        if ua_a and ua_b:
+            ua_jaccard = len(ua_a & ua_b) / len(ua_a | ua_b)
+        else:
+            ua_jaccard = 0.0
+
+        return 0.7 * url_jaccard + 0.3 * ua_jaccard
+
 
 class AnomalyDetector(BaseDetector):
-    """Anomaly detector for unusual behavior patterns"""
-    
-    def detect(self, actors: Dict[str, ActorProfile]) -> Dict[str, ActorProfile]:
-        """Detect anomalous behavior patterns"""
-        actor_list = list(actors.values())
-        logger.info(f"Running anomaly detection on {len(actor_list)} actors")
-        
-        if len(actor_list) < 3:  # Need multiple actors for comparison
-            return actors
-        
-        # Calculate baseline metrics
-        baseline_metrics = self._calculate_baseline_metrics(actor_list)
-        
+    """Flag actors whose behaviour stands out from the population.
+
+    For each actor we combine two signals:
+
+    1. Any pre-existing ``actor.anomaly_ratio`` (set by an upstream stage).
+    2. A z-score blend across entropy / URL diversity / request count /
+       centrality computed against the rest of the population.
+
+    The final value is used to drive the ``ANOMALOUS`` / ``SUSPICIOUS``
+    tags via configured thresholds.
+    """
+
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
+        self.anomaly_threshold = float(config.get("anomaly_threshold", 0.7))
+        self.suspicious_threshold = float(config.get("suspicious_threshold", 0.4))
+
+    def detect(
+        self,
+        actors: ActorInput,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        actor_list = _normalize_actors(actors)
+        if len(actor_list) < 2:
+            return {}
+
+        baseline = self._calculate_baseline(actor_list)
         anomalies = 0
+        suspicious = 0
+
         for actor in actor_list:
-            anomaly_score = self._calculate_anomaly_score(actor, baseline_metrics)
-            actor.anomaly_ratio = anomaly_score
-            
-            if anomaly_score > 0.7:  # High anomaly threshold
+            computed_score = self._z_score_blend(actor, baseline)
+            score = max(actor.anomaly_ratio, computed_score)
+            actor.anomaly_ratio = score
+
+            if score >= self.anomaly_threshold:
                 anomalies += 1
-                actor.add_tag('ANOMALOUS', self.name)
+                actor.add_tag("ANOMALOUS", self.name)
                 self.add_evidence(
                     actor,
                     "anomaly_detected",
-                    f"High anomaly score: {anomaly_score:.3f}",
-                    0.8
+                    f"Anomaly score {score:.3f}",
+                    confidence=0.8,
                 )
-            elif anomaly_score > 0.4:  # Medium anomaly
-                actor.add_tag('SUSPICIOUS', self.name)
+            elif score >= self.suspicious_threshold:
+                suspicious += 1
+                actor.add_tag("SUSPICIOUS", self.name)
                 self.add_evidence(
                     actor,
                     "suspicious_behavior",
-                    f"Medium anomaly score: {anomaly_score:.3f}",
-                    0.6
+                    f"Anomaly score {score:.3f}",
+                    confidence=0.6,
                 )
-        
-        logger.info(f"Anomaly detection complete: {anomalies} anomalous actors")
-        return actors
-    
-    def _calculate_baseline_metrics(self, actors: List[ActorProfile]) -> Dict[str, float]:
-        """Calculate baseline metrics from all actors"""
-        metrics = {
-            'avg_entropy': [],
-            'url_diversity': [],
-            'request_count': [],
-            'avg_centrality': []
+
+        return {
+            "anomaly_summary": {
+                "total_actors": len(actor_list),
+                "anomalies": anomalies,
+                "suspicious": suspicious,
+                "anomaly_rate": anomalies / len(actor_list) if actor_list else 0.0,
+            }
         }
-        
-        for actor in actors:
-            metrics['avg_entropy'].append(actor.avg_entropy)
-            metrics['url_diversity'].append(actor.url_diversity_ratio)
-            metrics['request_count'].append(actor.total_requests)
-            metrics['avg_centrality'].append(actor.centrality)
-        
-        baseline = {}
-        for key, values in metrics.items():
-            if values:
-                baseline[f'{key}_mean'] = np.mean(values)
-                baseline[f'{key}_std'] = np.std(values)
-        
+
+    @staticmethod
+    def _calculate_baseline(actors: List[ActorProfile]) -> Dict[str, float]:
+        baseline: Dict[str, float] = {}
+        for attr in ("avg_entropy", "url_diversity_ratio", "total_requests", "centrality"):
+            values = np.asarray([getattr(actor, attr) for actor in actors], dtype=float)
+            baseline[f"{attr}_mean"] = float(values.mean())
+            baseline[f"{attr}_std"] = float(values.std())
         return baseline
-    
-    def _calculate_anomaly_score(self, actor: ActorProfile, baseline: Dict[str, float]) -> float:
-        """Calculate anomaly score for an actor"""
-        scores = []
-        
-        # Entropy anomaly
-        if 'avg_entropy_mean' in baseline and 'avg_entropy_std' in baseline:
-            entropy_z = abs(actor.avg_entropy - baseline['avg_entropy_mean']) / baseline['avg_entropy_std']
-            scores.append(min(entropy_z / 3.0, 1.0))  # Cap at 1.0
-        
-        # URL diversity anomaly
-        if 'url_diversity_mean' in baseline and 'url_diversity_std' in baseline:
-            diversity_z = abs(actor.url_diversity_ratio - baseline['url_diversity_mean']) / baseline['url_diversity_std']
-            scores.append(min(diversity_z / 3.0, 1.0))
-        
-        # Request count anomaly
-        if 'request_count_mean' in baseline and 'request_count_std' in baseline:
-            count_z = abs(actor.total_requests - baseline['request_count_mean']) / baseline['request_count_std']
-            scores.append(min(count_z / 3.0, 1.0))
-        
-        # Centrality anomaly
-        if 'avg_centrality_mean' in baseline and 'avg_centrality_std' in baseline:
-            centrality_z = abs(actor.centrality - baseline['avg_centrality_mean']) / baseline['avg_centrality_std']
-            scores.append(min(centrality_z / 3.0, 1.0))
-        
-        return np.mean(scores) if scores else 0.0
+
+    @staticmethod
+    def _z_score_blend(actor: ActorProfile, baseline: Dict[str, float]) -> float:
+        scores: List[float] = []
+        for attr in ("avg_entropy", "url_diversity_ratio", "total_requests", "centrality"):
+            std = baseline[f"{attr}_std"]
+            if std <= 0:
+                continue
+            mean = baseline[f"{attr}_mean"]
+            z = abs(getattr(actor, attr) - mean) / std
+            scores.append(min(z / 3.0, 1.0))
+        return float(np.mean(scores)) if scores else 0.0
+
 
 class BehavioralClusteringDetector(BaseDetector):
-    """Detector for clustering actors based on behavioral vectors"""
-    
-    def detect(self, actors: Dict[str, ActorProfile]) -> Dict[str, ActorProfile]:
-        """Cluster actors based on behavioral similarity"""
-        actor_list = list(actors.values())
-        logger.info(f"Running behavioral clustering on {len(actor_list)} actors")
-        
+    """Cluster actors by their behavioural vector (URL frequency profile).
+
+    Uses cosine similarity via 1 - cosine distance over normalised URL
+    frequency vectors and produces a simple ``clustering_summary``.
+    """
+
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
+        self.similarity_threshold = float(config.get("similarity_threshold", 0.6))
+
+    def detect(
+        self,
+        actors: ActorInput,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        actor_list = _normalize_actors(actors)
         if len(actor_list) < 2:
-            return actors
-        
-        # Extract behavioral vectors
-        behavioral_vectors = []
-        valid_actors = []
-        
+            return {}
+
+        vectors = []
+        owners = []
         for actor in actor_list:
-            vector = actor.get_behavioral_vector()
-            if vector and sum(vector) > 0:  # Only include actors with meaningful behavior
-                behavioral_vectors.append(vector)
-                valid_actors.append(actor)
-        
-        if len(behavioral_vectors) < 2:
-            return actors
-        
-        # Normalize vectors
-        vectors_array = np.array(behavioral_vectors)
-        scaler = StandardScaler()
-        normalized_vectors = scaler.fit_transform(vectors_array)
-        
-        # Perform clustering
-        clustering = DBSCAN(eps=0.5, min_samples=2)
-        cluster_labels = clustering.fit_predict(normalized_vectors)
-        
-        # Process clusters
-        clusters = {}
-        for i, (actor, label) in enumerate(zip(valid_actors, cluster_labels)):
-            if label >= 0:  # Valid cluster
-                if label not in clusters:
-                    clusters[label] = []
-                clusters[label].append(actor)
-        
-        # Tag actors based on cluster characteristics
-        for cluster_id, cluster_actors in clusters.items():
-            if len(cluster_actors) >= 3:
-                # Large coordinated cluster
-                for actor in cluster_actors:
-                    actor.add_tag('COORDINATED_ATTACK', self.name)
-                    self.add_evidence(
-                        actor,
-                        "coordinated_attack_detected",
-                        f"Part of coordinated cluster {cluster_id} with {len(cluster_actors)} actors",
-                        0.8
-                    )
-            elif len(cluster_actors) == 2:
-                # Small coordinated pair
-                for actor in cluster_actors:
-                    actor.add_tag('PAIRED_ATTACK', self.name)
-                    self.add_evidence(
-                        actor,
-                        "paired_attack_detected",
-                        f"Part of attack pair in cluster {cluster_id}",
-                        0.6
-                    )
-        
-        # Detect isolated actors (noise in DBSCAN)
-        isolated_actors = [actor for actor in valid_actors if actor.ip_address not in 
-                          [a.ip_address for cluster in clusters.values() for a in cluster]]
-        
-        for actor in isolated_actors:
-            actor.add_tag('ISOLATED_ATTACKER', self.name)
-            self.add_evidence(
-                actor,
-                "isolated_attacker_detected",
-                "Actor shows unique behavioral pattern",
-                0.5
-            )
-        
-        logger.info(f"Behavioral clustering complete: {len(clusters)} clusters, {len(isolated_actors)} isolated")
-        return actors
+            vec = actor.get_behavioral_vector()
+            if vec and sum(vec) > 0:
+                vectors.append(np.asarray(vec, dtype=float))
+                owners.append(actor)
+
+        if len(vectors) < 2:
+            return {}
+
+        clusters: List[List[ActorProfile]] = []
+        assigned = [False] * len(vectors)
+        for i in range(len(vectors)):
+            if assigned[i]:
+                continue
+            cluster = [owners[i]]
+            assigned[i] = True
+            for j in range(i + 1, len(vectors)):
+                if assigned[j]:
+                    continue
+                if self._cosine_similarity(vectors[i], vectors[j]) >= self.similarity_threshold:
+                    cluster.append(owners[j])
+                    assigned[j] = True
+            clusters.append(cluster)
+
+        largest = max((len(c) for c in clusters), default=0)
+        for cluster in clusters:
+            if len(cluster) >= 2:
+                for actor in cluster:
+                    actor.add_tag("CLUSTER_MEMBER", self.name)
+
+        return {
+            "clustering_summary": {
+                "total_clusters": len(clusters),
+                "largest_cluster": largest,
+            }
+        }
+
+    @staticmethod
+    def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
+        denom = float(np.linalg.norm(a) * np.linalg.norm(b))
+        if denom == 0:
+            return 0.0
+        return float(np.dot(a, b) / denom)
