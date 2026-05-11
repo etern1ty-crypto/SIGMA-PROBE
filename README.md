@@ -1,8 +1,7 @@
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:1a1b27,50:3670A0,100:1a1b27&height=200&section=header&text=SIGMA-PROBE&fontSize=50&fontColor=FFFFFF&fontAlignY=35&desc=Helios%20v2.0%20%E2%80%94%20Advanced%20Threat%20Analysis%20Engine&descSize=16&descColor=ffdd54&descAlignY=55&animation=fadeIn" width="100%"/>
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:1a1b27,50:3670A0,100:1a1b27&height=200&section=header&text=SIGMA-PROBE&fontSize=50&fontColor=FFFFFF&fontAlignY=35&desc=Helios%20v2.0%20--%20Advanced%20Threat%20Analysis%20Engine&descSize=16&descColor=ffdd54&descAlignY=55&animation=fadeIn" width="100%"/>
 
 <div align="center">
 
-[![CI](https://github.com/etern1ty-crypto/SIGMA-PROBE/actions/workflows/ci.yml/badge.svg)](https://github.com/etern1ty-crypto/SIGMA-PROBE/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-3670A0?style=flat-square&logo=python&logoColor=ffdd54)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Version](https://img.shields.io/badge/version-2.0.0-blue?style=flat-square)]()
