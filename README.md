@@ -157,11 +157,8 @@ pipeline:
 
 ### Запуск
 ```bash
-# Системный тест
-python test_system.py
-
 # Полный анализ
-python -m src.main
+python -m sigma_probe.main
 
 # Unit-тесты
 python -m pytest tests/
@@ -252,11 +249,6 @@ pipeline:
 
 ## 🧪 Тестирование
 
-### Системный тест
-```bash
-python test_system.py
-```
-
 ### Unit-тесты
 ```bash
 python -m pytest tests/
@@ -264,8 +256,14 @@ python -m pytest tests/
 
 ### Покрытие тестами
 ```bash
-python -m pytest tests/ --cov=src --cov-report=html
+python -m pytest tests/ --cov=sigma_probe --cov-report=html
 ```
+
+### Что покрыто, а что нет
+- **Покрыто**: модели (`LogEvent`, `ActorProfile`), эвристики, скоринг (`ScoringRulesEngine`), детекторы (`FFT`, `Graph`, `Anomaly`).
+- **Пропущено**: end-to-end BDD-сценарий `tests/test_lfi_scenario.py` — требует фиксуру `tests/scenarios/lfi_attack_scenario.log` и поддержку `HeliosPipeline.run(log_path)`. Класс помечен `@pytest.mark.skip` с явной причиной; восстанавливать обе части — отдельная задача.
+
+CI автоматически прогоняет pytest на каждом push/PR через `.github/workflows/ci.yml`.
 
 ## 🎯 Преимущества v2.0
 

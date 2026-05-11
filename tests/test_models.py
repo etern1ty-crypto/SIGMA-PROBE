@@ -5,7 +5,7 @@ Unit tests for SIGMA-PROBE Data Models
 import pytest
 from datetime import datetime
 
-from src.models.core import LogEvent, ActorProfile
+from sigma_probe.models.core import LogEvent, ActorProfile
 
 class TestLogEvent:
     """Test cases for LogEvent model"""
