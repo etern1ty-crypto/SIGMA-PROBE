@@ -1,5 +1,9 @@
 # 🚀 SIGMA-PROBE Helios v2.0
 
+[![CI](https://github.com/etern1ty-crypto/SIGMA-PROBE/actions/workflows/ci.yml/badge.svg)](https://github.com/etern1ty-crypto/SIGMA-PROBE/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **Advanced Modular Threat Analysis Framework**
 
 Архитектура v2.0 - 'Helios' представляет собой квантовый скачок в области анализа угроз. Это не просто система детекции - это интеллектуальный аналитический движок, способный понимать сложные многоэтапные атаки и принимать контекстные решения.
@@ -130,9 +134,22 @@ scoring_profiles:
 
 ### Установка
 ```bash
-git clone <repository>
-cd sigma-probe
-pip install -r requirements.txt
+git clone https://github.com/etern1ty-crypto/SIGMA-PROBE.git
+cd SIGMA-PROBE
+
+# Editable install (подходит и для pip, и для uv):
+python -m pip install -e .
+python -m pip install pytest pytest-cov
+```
+
+Проект использует `pyproject.toml` (PEP 621 через Poetry). Python ≥3.11 рекомендуется —
+stack `numpy/scipy/pandas/networkx` на 3.12 с более старыми версиями может потребовать сборки
+из исходников. Для воспроизводимости создайте виртуальное окружение:
+
+```bash
+python3.11 -m venv .venv && source .venv/bin/activate
+# или через uv:
+# uv venv --python 3.11 .venv && source .venv/bin/activate
 ```
 
 ### Конфигурация
@@ -157,12 +174,15 @@ pipeline:
 
 ### Запуск
 ```bash
-# Полный анализ
+# Полный анализ (читает input_file из config.yaml — по умолчанию sample_nginx.log)
 python -m sigma_probe.main
 
 # Unit-тесты
-python -m pytest tests/
+python -m pytest tests/ -v
 ```
+
+Текущий статус тестового прогона: **39 passed, 5 skipped** (BDD-сценарий с LFI-фиксурой временно
+пропущен — см. раздел «Что покрыто, а что нет» ниже).
 
 ## 📊 Примеры Вывода
 
