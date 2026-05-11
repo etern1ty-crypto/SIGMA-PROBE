@@ -6,8 +6,8 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import Mock
 
-from src.models.core import ActorProfile, LogEvent
-from src.pipeline.detectors import FFTDetector, GraphDetector, AnomalyDetector
+from sigma_probe.models.core import ActorProfile, LogEvent
+from sigma_probe.pipeline.detectors import FFTDetector, GraphDetector, AnomalyDetector
 
 class TestFFTDetector:
     """Test cases for FFTDetector"""

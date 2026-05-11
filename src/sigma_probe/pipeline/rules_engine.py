@@ -23,113 +23,139 @@ class ScoringRulesEngine:
     def calculate_score(self, actor: ActorProfile, context: Dict[str, Any]) -> Tuple[float, List[Dict[str, Any]]]:
         """
         Calculate threat score for an actor based on tags and context
-        
+
         Returns:
             Tuple of (final_score, evidence_list)
         """
-        evidence_list = []
-        
-        # Calculate base score from individual tags
-        base_score = self._calculate_base_score(actor, evidence_list)
-        
-        # Apply tag combination modifiers
+        evidence_list: List[Dict[str, Any]] = []
+        context = context or {}
+
+        # Calculate base score from individual tags. Each tag's score is
+        # computed independently and modifiers are applied to that tag's
+        # score only, so iteration order is not significant.
+        base_score = self._calculate_base_score(actor, context, evidence_list)
+
+        # Apply tag combination modifiers (explicit combinations + dynamic
+        # interactions like "coordination + attack").
         combination_modifier = self._calculate_tag_combination_modifier(actor.tags, evidence_list)
-        
-        # Apply contextual modifiers
+
+        # Apply contextual modifiers driven by the global landscape.
         contextual_modifier = self._calculate_contextual_modifier(actor, context, evidence_list)
-        
-        # Apply global modifiers
+
+        # Apply global modifiers (scale / coordination of the broader attack).
         global_modifier = self._calculate_global_modifier(context, evidence_list)
-        
-        # Calculate final score
+
         final_score = base_score * combination_modifier * contextual_modifier * global_modifier
-        
+
         return final_score, evidence_list
-    
-    def _calculate_base_score(self, actor: ActorProfile, evidence_list: List[Dict[str, Any]]) -> float:
-        """Calculate base score from individual tags"""
+
+    def _calculate_base_score(
+        self,
+        actor: ActorProfile,
+        context: Dict[str, Any],
+        evidence_list: List[Dict[str, Any]],
+    ) -> float:
+        """Sum per-tag base scores with per-tag modifiers."""
         base_score = 0.0
-        
+
         for tag in actor.tags:
-            if tag in self.scoring_profiles:
-                profile = self.scoring_profiles[tag]
-                tag_score = profile.get('base_score', 0.0)
-                base_score += tag_score
-                
-                # Apply tag-specific modifiers
-                modifiers = profile.get('modifiers', [])
-                for modifier in modifiers:
-                    if self._evaluate_modifier_condition(actor, modifier):
-                        modifier_value = modifier.get('value', 1.0)
-                        base_score *= modifier_value
-                        
-                        # Add evidence for modifier application
-                        evidence = modifier.get('evidence', f"Applied {tag} modifier: {modifier_value}")
-                        evidence_list.append({
-                            'source': 'RulesEngine',
-                            'type': 'modifier_applied',
-                            'details': evidence,
-                            'confidence': 0.7
-                        })
-        
+            if tag not in self.scoring_profiles:
+                continue
+
+            profile = self.scoring_profiles[tag]
+            tag_score = profile.get('base_score', 0.0)
+
+            for modifier in profile.get('modifiers', []):
+                if self._evaluate_modifier_condition(actor, modifier, context):
+                    modifier_value = modifier.get('value', 1.0)
+                    tag_score *= modifier_value
+
+                    evidence = modifier.get(
+                        'evidence', f"Applied {tag} modifier: {modifier_value}"
+                    )
+                    evidence_list.append({
+                        'source': 'RulesEngine',
+                        'type': 'modifier_applied',
+                        'details': evidence,
+                        'confidence': 0.7,
+                    })
+
+            base_score += tag_score
+
         return base_score
-    
-    def _evaluate_modifier_condition(self, actor: ActorProfile, modifier: Dict[str, Any]) -> bool:
-        """Evaluate if a modifier condition is met"""
+
+    def _evaluate_modifier_condition(
+        self,
+        actor: ActorProfile,
+        modifier: Dict[str, Any],
+        context: Dict[str, Any],
+    ) -> bool:
+        """Evaluate whether a single per-tag modifier should fire.
+
+        Conditions are deliberately context- or metric-driven so that
+        having the same tag does not automatically trigger every modifier
+        attached to its profile (which would otherwise cause modifiers to
+        always fire and double-count with combination / contextual logic).
+        """
         condition = modifier.get('if', '')
-        
+
         if condition == 'fft_is_rhythmic':
-            return 'AUTOMATED_SCAN' in actor.tags
-        
-        elif condition == 'url_diversity_ratio':
+            return bool(context.get('fft_summary', {}).get('is_rhythmic'))
+
+        if condition == 'url_diversity_ratio':
             threshold = modifier.get('threshold', 0.8)
             return actor.url_diversity_ratio > threshold
-        
-        elif condition == 'high_entropy':
+
+        if condition == 'high_entropy':
             threshold = modifier.get('threshold', 4.5)
             return actor.avg_entropy > threshold
-        
-        elif condition == 'high_centrality':
+
+        if condition == 'high_centrality':
             threshold = modifier.get('threshold', 0.5)
             return actor.centrality > threshold
-        
-        elif condition == 'anomalous_behavior':
+
+        if condition == 'anomalous_behavior':
             threshold = modifier.get('threshold', 0.7)
             return actor.anomaly_ratio > threshold
-        
-        elif condition == 'coordinated_attack':
-            return 'COORDINATED_ATTACK' in actor.tags or 'COORDINATOR' in actor.tags
-        
-        elif condition == 'multiple_attack_types':
+
+        if condition == 'coordinated_attack':
+            return bool(context.get('coordinated_attack', False))
+
+        if condition == 'multiple_attack_types':
             attack_tags = {'LFI_RFI', 'SQL_INJECTION', 'XSS', 'COMMAND_INJECTION'}
             return len(actor.tags.intersection(attack_tags)) >= 2
-        
+
         return False
     
     def _calculate_tag_combination_modifier(self, tags: Set[str], evidence_list: List[Dict[str, Any]]) -> float:
-        """Calculate modifier based on tag combinations"""
+        """Calculate modifier based on tag combinations.
+
+        Explicit combinations from configuration take precedence over the
+        generic dynamic heuristic: if a configured combination matched, we
+        skip the dynamic bonus for the same situation to avoid double
+        counting (which previously made e.g. ``LFI_RFI+COORDINATED_ATTACK``
+        produce roughly the cube of the intended score).
+        """
         modifier = 1.0
-        
-        # Check for predefined tag combinations
+        explicit_matched = False
+
         for combination, config in self.tag_combinations.items():
             combination_tags = set(combination.split('+'))
             if combination_tags.issubset(tags):
-                combination_modifier = config.get('multiplier', 1.0)
-                modifier *= combination_modifier
-                
-                # Add evidence for combination detection
+                modifier *= config.get('multiplier', 1.0)
+                explicit_matched = True
+
                 evidence = config.get('evidence', f"Detected tag combination: {combination}")
                 evidence_list.append({
                     'source': 'RulesEngine',
                     'type': 'combination_detected',
                     'details': evidence,
-                    'confidence': 0.8
+                    'confidence': 0.8,
                 })
-        
-        # Dynamic combination scoring
-        dynamic_modifier = self._calculate_dynamic_combination_modifier(tags)
-        modifier *= dynamic_modifier
-        
+
+        if not explicit_matched:
+            modifier *= self._calculate_dynamic_combination_modifier(tags)
+
         return modifier
     
     def _calculate_dynamic_combination_modifier(self, tags: Set[str]) -> float:
@@ -183,7 +209,7 @@ class ScoringRulesEngine:
         graph_summary = context.get('graph_summary', {})
         if graph_summary:
             avg_centrality = graph_summary.get('avg_centrality', 0.0)
-            if actor.centrality > avg_centrality * 2:
+            if avg_centrality > 0 and actor.centrality > avg_centrality * 2:
                 modifier *= 1.3  # High centrality in coordinated attack
                 evidence_list.append({
                     'source': 'RulesEngine',
