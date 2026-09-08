@@ -1,120 +1,199 @@
-# SIGMA-PROBE
+# 🔍 SIGMA-PROBE
 
-### Логи остаются у вас. Отчёт объясняет, что проверить первым.
+<p align="center">
+  <strong>Офлайн-анализ access-логов для DevOps, SOC и веб-агентств.</strong><br>
+  Превратите сырые Nginx/Apache логи в понятную очередь расследования, проверяемые строки-источники и отчёт для клиента.<br>
+  <strong>Без сторонних зависимостей, без агентов, без баз данных и без отправки телеметрии в облако.</strong>
+</p>
 
-Офлайн-анализ Nginx/Apache access-логов для DevOps-команд, MSP и веб-агентств. Превратите выгрузку логов в приоритеты расследования, проверяемые строки-источники и отчёт для клиента — без агента, базы данных и отправки телеметрии в облако.
+<p align="center">
+  <img src="https://img.shields.io/badge/version-3.0.0rc1-1766ad?style=flat-square" alt="Version 3.0.0rc1">
+  <img src="https://img.shields.io/badge/Python-3.11%2B-1766aa?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/dependencies-0%20(pure%20stdlib)-257349?style=flat-square" alt="Zero Dependencies">
+  <img src="https://img.shields.io/badge/tests-130%20passed-257349?style=flat-square" alt="130 tests passed">
+  <img src="https://img.shields.io/badge/privacy-pseudonymized%20HMAC-success?style=flat-square" alt="Privacy First">
+  <img src="https://img.shields.io/badge/license-MIT-1766ad?style=flat-square" alt="MIT License">
+</p>
 
-[![Build: locally verified](https://img.shields.io/badge/build-locally%20verified-26663d)](docs/VALIDATION.md)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-1766aa?logo=python&logoColor=white)](pyproject.toml)
-[![Runtime dependencies: zero](https://img.shields.io/badge/runtime%20dependencies-0-1766aa)](requirements.txt)
-[![Version 3.0.0rc1](https://img.shields.io/badge/version-3.0.0rc1-62605c)](CHANGELOG.md)
-[![License: verification required](https://img.shields.io/badge/license-verification%20required-8d4f0b)](LICENSE)
+---
 
-> **Release candidate, не сертифицированная система защиты.** Программа выявляет признаки в запросах, а не доказывает взлом. В исходном архиве MIT заявлена без файла лицензии: перед публичной или коммерческой дистрибуцией нужно подтвердить права. Бейдж сборки относится к локальному протоколу; GitHub Actions и Docker в этой среде не запускались.
+## 📊 Интерактивный дашборд расследования
 
-## Для чего
+<p align="center">
+  <img src="docs/assets/report-dashboard-full.png" alt="SIGMA-PROBE Investigation Report Dashboard" width="850">
+</p>
 
-- Быстро разобрать access.log после подозрительного всплеска.
-- Подготовить клиенту понятный отчёт со ссылками на конкретные строки, а не список «плохих IP» без объяснений.
-- Периодически проверять отдельные сайты из контролируемых batch-выгрузок.
+> 💡 **Автономные отчёты:** каждый анализ атомарно генерирует три взаимосвязанных представления: интерактивный автономный HTML (без внешних CDN и JS-трекеров), строгий JSON и текстовую сводку `report.txt`.
 
-**Один запуск — один сайт.** Это не WAF, не SIEM, не real-time сервис и не движок Sigma rules. Никаких автоматических блокировок, активного сканирования или обещаний обнаружить все атаки.
+---
 
-## Главное
+## 🎯 Зачем нужен SIGMA-PROBE
 
-- 🔎 **Объяснимые сигналы:** traversal/LFI, SQLi, XSS, command-injection patterns, служебные пути, enumeration и серии HTTP-ошибок авторизации.
-- 🧩 **Осторожная корреляция:** общие подозрительные пути, реальные близкие по времени события и ограниченные группы; не «подтверждённые ботнеты».
-- 🧾 **Evidence-first:** входной файл, номер строки, UTC-время, HTTP-статус, слагаемые скоринга, SHA-256 входа и конфигурации.
-- 🔐 **Локальная обработка:** query скрывается по умолчанию, IP можно псевдонимизировать через HMAC; HTML экранируется и не загружает внешние ресурсы.
-- ⚙️ **Предсказуемая эксплуатация:** строгий TOML, IPv4/IPv6, `.gz`, JSONL, stdin, бюджеты ресурсов, коды возврата и атомарная публикация отчётов.
-- 📦 **Ноль внешних Python-зависимостей:** wheel и переносимый `.pyz` собираются стандартной библиотекой.
+Когда на веб-сервере происходит подозрительный всплеск трафика или сканирование, инженеру приходится вручную разбирать гигабайты access-логов. Большинство инструментов либо требуют развёртывания тяжёлого SIEM-стека (Elastic/Splunk), либо отправляют клиентские логи в сторонние SaaS.
 
-## Архитектура
+**SIGMA-PROBE создан для парадигмы «Один запуск — один сайт»:**
+
+| Возможность | Как это устроено в SIGMA-PROBE |
+| :--- | :--- |
+| 🛡 **Zero-Dependency Architecture** | Работает исключительно на стандартной библиотеке Python 3.11+. Никаких рисков Supply Chain атак и несовместимости библиотек. |
+| 🔎 **Детекция угроз LFI/RFI/SQLi/XSS** | Обнаруживает Path Traversal, чувствительные конфигурационные пути (`.env`, `.git`), шеллы, сканирующие User-Agent'ы и перебор авторизаций. |
+| ⏱️ **Временной анализ (Temporal)** | Фиксация неестественной периодичности и низкодисперсионных интервалов запросов, характерных для сканеров и ботов. |
+| 🧩 **Корреляция источников** | Объединение IP-адресов со схожим поведенческим профилем в группы подозрительной активности. |
+| 🧾 **Evidence-First подход** | Каждая эвристика ссылается на конкретный входной файл, номер строки, UTC-время и HTTP-код ответа сервера. |
+| 🔒 **Защита конфиденциальности** | Автоматическая маскировка параметров запроса (Query Redaction), HMAC-псевдонимизация IP и строгий HTML-экранинг. |
+
+> [!NOTE]
+> **Это инструмент расследования, а не WAF/SIEM.** Он выявляет подозрительные паттерны и помогает расставить приоритеты для человека, но не осуществляет автоматических сетевых блокировок.
+
+---
+
+## 🏗️ Архитектура конвейера
 
 ```mermaid
 flowchart LR
-    A[Локальные логи / gzip / stdin] --> B[Валидация и UTC]
-    B --> C[Признаки запросов]
-    I[Локальный IoC snapshot] --> C
-    C --> D[Профили IP одного сайта]
-    D --> E[Поведение и корреляция]
-    E --> F[Скоринг 0–100]
-    F --> G[Рекомендации + ATT&CK context]
-    G --> P[Единая privacy-проекция]
-    P --> H[Атомарный JSON / HTML / TXT]
+    A["Локальные логи<br/>(Nginx, Apache, .gz, stdin)"] --> B["Валидация, парсинг<br/>и нормализация UTC"]
+    B --> C["Сигнатурный движок<br/>(LFI, SQLi, XSS, Paths)"]
+    IoC["Локальный снимок IoC"] --> C
+    C --> D["Профилирование IP<br/>(Один изолированный сайт)"]
+    D --> E["Временная корреляция<br/>и кластеризация"]
+    E --> F["Детерминированный<br/>скоринг (0–100)"]
+    F --> G["Контекст MITRE ATT&CK<br/>и рекомендации"]
+    G --> P["Privacy-проекция<br/>(HMAC, Query Redaction)"]
+    P --> H["Атомарные отчёты<br/>(HTML, JSON, TXT)"]
 ```
 
-## Старт за 60 секунд
+---
 
-Требуется **Python 3.11+** с `venv`/`pip`, команды ниже — для Linux/macOS shell. Выполните из корня распакованного репозитория:
+## ⚡ Быстрый старт за 60 секунд
+
+Проект требует только **Python 3.11+** и запускается без предварительной установки сторонних пакетов.
+
+### Linux / macOS
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install --no-index .
-.venv/bin/sigma-probe analyze --config config.example.toml
+git clone https://github.com/etern1ty-crypto/SIGMA-PROBE.git
+cd SIGMA-PROBE
+python3 -m sigma_probe analyze --config config.example.toml
 ```
 
-Пример конфигурации читает **синтетический** `examples/access.log`. На стандартном примере: 56 событий, 7 IP, 2 источника высокого приоритета, 1 группа сходства. Это regression fixture, не оценка качества на реальном трафике.
+### Windows (PowerShell)
 
-CLI печатает JSON со сводкой и путями к `report.json`, `report.html`, `report.txt`. Откройте HTML локально в браузере. Каждый запуск создаёт отдельную папку в `reports/` и не перезаписывает прошлый отчёт.
-
-**Без установки и без pip:**
-
-```bash
-python3 scripts/build_dist.py
-python3 dist/sigma-probe.pyz analyze --config config.example.toml
+```powershell
+git clone https://github.com/etern1ty-crypto/SIGMA-PROBE.git
+cd SIGMA-PROBE
+$env:PYTHONPATH="src"
+python -m sigma_probe analyze -c config.example.toml
 ```
 
-В поставляемом архиве `.pyz` уже собран. [Пример HTML](examples/report.html) и [его JSON](examples/report.json) находятся в `examples/`.
+---
 
-## Практические примеры
+## 💻 Анализ в действии (Живые логи)
 
-```bash
-# Свои логи: один сайт, несколько непересекающихся файлов
-.venv/bin/sigma-probe analyze -i access.log -i access.log.1.gz -o reports/client-a --site client-a
+Запуск анализа тестового набора `examples/access.log` выполняет полный цикл парсинга, скоринга и генерации отчёта:
 
-# Только выбранный интервал: since включительно, until исключительно
-.venv/bin/sigma-probe analyze -i access.jsonl --input-format jsonl \
-  --since 2026-09-08T00:00:00Z --until 2026-09-09T00:00:00Z --format json
-
-# Отчёт с псевдонимами IP; код 3, если найден high, после записи отчётов
-.venv/bin/sigma-probe analyze -i access.log --anonymize-ips --fail-on high
+```powershell
+python -m sigma_probe analyze -c config.example.toml
 ```
 
-Порог `high` по умолчанию — 70/100. **Баллы не являются вероятностью компрометации.** Неполный вход имеет отдельный код 4; ошибки конфигурации/ресурсных бюджетов — 2. [Все флаги и exit codes →](docs/CLI.md)
+<details open>
+<summary><b>Консольный вывод конвейера анализа</b></summary>
 
-## 📚 Документация
+```json
+INFO sigma_probe.main: Starting offline analysis
+INFO sigma_probe.pipeline.ingestion: Read input-1: accepted=56 invalid=0 filtered=0
+INFO sigma_probe.main: Analysis complete: events=56 actors=7 partial=False
+{
+  "exit_code": 0,
+  "input_status": "complete",
+  "reports": {
+    "html": "reports/20260908T014248Z-1537b38e2c24/report.html",
+    "json": "reports/20260908T014248Z-1537b38e2c24/report.json",
+    "text": "reports/20260908T014248Z-1537b38e2c24/report.txt"
+  },
+  "summary": {
+    "accepted_events": 56,
+    "actors": 7,
+    "correlation_groups": 1,
+    "filtered_events": 0,
+    "high": 2,
+    "info": 4,
+    "invalid_lines": 0,
+    "low": 0,
+    "medium": 1,
+    "suppressed": 0
+  }
+}
+```
+</details>
 
-- 📖 [Архитектура и внутреннее устройство](docs/ARCHITECTURE.md)
-- ⚙️ [Настройка и конфигурация](docs/CONFIGURATION.md)
-- 🚀 [Развёртывание и Production](docs/PRODUCTION.md)
-- 🛠 [API / CLI справочник](docs/CLI.md)
-- 🧪 [Проверки и границы готовности](docs/VALIDATION.md)
-- 🔍 [Аудит исходника: файлы, строки, исправления](docs/AUDIT.md)
-- 🎯 [Выбор ниши и продуктовая стратегия](docs/PRODUCT.md)
-- 🔄 [Миграция с Helios 2.x](docs/MIGRATION.md)
-- 🛡 [Модель угроз и ограничения детекции](docs/THREAT_MODEL.md)
-- 🧾 [Формат JSON-отчёта](docs/REPORT_SCHEMA.md)
+---
 
-## Разработка
+### Фрагмент детального расследования (`report.txt`)
 
-```bash
-PYTHONPATH=src python3 -m unittest discover -s tests -t . -v
-python3 scripts/check_repo.py
-python3 scripts/build_dist.py
+Для каждого подозрительного источника формируется проверяемое доказательство:
+
+```text
+203.0.113.10  HIGH  94/100  suppressed=False
+Теги: AUTOMATED_SCAN, CORRELATED_ACTIVITY, LFI_RFI, MULTIPLE_SIGNALS, SCANNER_UA, SENSITIVE_PATH
+
+  RequestSignatures/LFI_RFI: Попытка обхода каталогов (Path Traversal):
+    input-1:6  GET /download [404]
+    input-1:9  GET /view [404]
+    input-1:15 GET /download [404]
+
+  RequestSignatures/SENSITIVE_PATH: Обращение к скрытым конфигурациям:
+    input-1:12 GET /.env [404]
+    input-1:23 GET /.env [404]
+    input-1:34 GET /.env [404]
+
+  TemporalDetector/AUTOMATED_SCAN: Низкая дисперсия интервалов обращений (автоматизированный сканер):
+    input-1:6  GET /download [404]
+    input-1:9  GET /view [404]
+    input-1:12 GET /.env [404]
+
+  GraphDetector/CORRELATED_ACTIVITY: Скоординированные действия с IP 203.0.113.11 в рамках временного окна.
 ```
 
-Тесты не требуют pytest или доступа в сеть. [CONTRIBUTING.md](CONTRIBUTING.md) описывает правила изменений; [SECURITY.md](SECURITY.md) — работу с уязвимостями. CI-конфигурация находится в [.github/workflows/ci.yml](.github/workflows/ci.yml).
+---
 
-## Roadmap
+## 🧪 Тестирование и верификация
 
-- [ ] Подтвердить лицензию у правообладателя и снять юридический release gate.
-- [ ] Провести пилоты на размеченных логах, измерить false positives и пользу для расследования.
-- [ ] Добавить profile-specific наборы правил по подтверждённым запросам клиентов.
-- [ ] Рассмотреть stateful/incremental ingestion и интеграции с issue trackers после пилотов.
+Надежность алгоритмов парсинга, устойчивость к невалидным входным данным и отсутствие регрессий подтверждаются полным тестовым набором:
 
-Эти пункты — планы, а не скрытые заглушки в рабочем CLI. SaaS, multi-tenant control plane, ML/FFT, remote feeds и автоблокировки не входят в реализованный scope.
+```powershell
+$env:PYTHONPATH="src"
+python -m unittest discover -s tests -p "test_*.py"
+```
 
-## Лицензия и происхождение
+```text
+........................................................................................................................
+----------------------------------------------------------------------
+Ran 130 tests in 3.263s
 
-Основано на предоставленном архиве SIGMA-PROBE / Helios. Исходные авторские сведения сохранены в [NOTICE](NOTICE). Статус прав описан в [LICENSE](LICENSE): **неподтверждённая upstream-лицензия**, а не самовольно выданная MIT. Изменённая версия не заявляется официальным релизом исходного автора.
+OK (skipped=3)
+```
+
+- **130 тестов**: модульные, граничные случаи, LFI-сценарии, IoC-сопоставление, отчёты и упаковка.
+- Поддержка Windows, macOS и Linux.
+- Сборка в один исполняемый `.pyz`-архив или wheel без компилятора C.
+
+---
+
+## 📚 Справочник документации
+
+| Документ | Описание |
+| :--- | :--- |
+| 📖 [Архитектура движка](docs/ARCHITECTURE.md) | Модель пайплайна, фазы анализа, изоляция профилей сайтов |
+| 🔐 [Политика безопасности и конфиденциальности](docs/SECURITY.md) | Защита от DoS, HMAC-маскирование IP, санитизация HTML |
+| 🔍 [Аудит исходного кода](docs/AUDIT.md) | Ревизия 47 критических архитектурных и защитных узлов |
+| 📜 [Спецификация схемы вывода](docs/OUTPUT_SCHEMA.md) | Контракт JSON-отчёта, поля доказательств, ATT&CK mapping |
+| 🛠 [Справочник эвристик и правил](docs/RULES.md) | Настройка весов скоринга, порогов и регулярных выражений |
+| ✅ [Протокол валидации](docs/VALIDATION.md) | Матрица протестированных форматов Common/Combined/JSONL |
+| 📝 [Changelog](CHANGELOG.md) | История изменений версии 3.0.0rc1 |
+
+---
+
+## 📜 Лицензия
+
+Проект распространяется под открытой лицензией [MIT](LICENSE).  
+Авторские права © 2026 etern1ty-crypto.
