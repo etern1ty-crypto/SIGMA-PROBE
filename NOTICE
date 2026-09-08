@@ -1,0 +1,27 @@
+SIGMA-PROBE attribution and scope notice
+
+Original archive: SIGMA-PROBE-main.zip
+Original names: SIGMA-PROBE v2.0 / Helios; internal __version__ was 1.0.0.
+Original authorship fields: Etern1ty Crypto; eternity-crypto.
+Original source SHA-256:
+c1d42366af673cf2068b59f21f2d648a3ff066e61debca9c5654691940f441ad
+
+This user-requested revision reworks the code as SIGMA-PROBE 3.0.0rc1,
+an offline, evidence-first web access-log triage tool. No implication of
+upstream endorsement, transfer of authorship, or an authorized official
+upstream release is intended. See LICENSE for unresolved distribution rights.
+
+MITRE ATT&CK is a registered trademark of The MITRE Corporation. Technique
+identifiers and names are used as contextual references, not as a claim of
+certification, affiliation, successful exploitation or threat attribution.
+The code contains no copied ATT&CK dataset or external threat feed.
+
+All bundled access logs and IoC examples are synthetic. IPv4 ranges
+192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24 and IPv6 2001:db8::/32
+are documentation ranges, not findings about real hosts. Do not import these
+synthetic IoC examples as a production reputation feed.
+
+Runtime and build use only Python's standard library. No third-party Python
+package code or commercial feed data is vendored in the distribution.
+Python itself and optional container base images retain their own licenses
+and security maintenance requirements.

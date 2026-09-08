@@ -1,0 +1,26 @@
+{
+  "version": "3.0.0rc1",
+  "wheel_filename": "sigma_probe-3.0.0rc1-py3-none-any.whl",
+  "wheel_sha256": "3f96042a16e6aa08ef23d6c4de25e5bd34bd54a36dc06d8e4efadc4e31a75f3c",
+  "wheel_installed_without_index_or_deps": true,
+  "pip_check": "No broken requirements found.",
+  "zipapp_filename": "sigma-probe.pyz",
+  "zipapp_sha256": "bf38c92045d848c466fbc499622d53e6ee8d4f78eae608f27a335e5575fa2caa",
+  "zipapp_flags": [
+    "-I",
+    "-S"
+  ],
+  "zipapp_executed_outside_source": true,
+  "summary": {
+    "accepted_events": 56,
+    "actors": 7,
+    "correlation_groups": 1,
+    "filtered_events": 0,
+    "high": 2,
+    "info": 4,
+    "invalid_lines": 0,
+    "low": 0,
+    "medium": 1,
+    "suppressed": 0
+  }
+}

@@ -1,8 +1,3 @@
-"""
-SIGMA-PROBE v2.0 - 'Helios'
-Модульная аналитическая платформа для анализа угроз
-"""
-
-__version__ = "1.0.0"
-__author__ = "eternity-crypto"
-__description__ = "Модульная аналитическая платформа для анализа угроз" 
+"""SIGMA-PROBE: local, evidence-first access-log triage."""
+__version__ = "3.0.0rc1"
+__author__ = "Original project: Etern1ty Crypto / eternity-crypto"

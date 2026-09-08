@@ -1,0 +1,14 @@
+{
+  "scenario": "synthetic periodic health checks",
+  "events": 50000,
+  "actors": 1000,
+  "input_bytes": 4636500,
+  "elapsed_seconds": 2.8319,
+  "events_per_second": 17655.8,
+  "peak_rss_mib": 71.93,
+  "python": "3.13.14",
+  "platform": "Linux",
+  "includes": "parse, enrich, profile, detect, score, in-memory report projection",
+  "excludes": "input generation and report file rendering/writes",
+  "production_capacity_claim": false
+}

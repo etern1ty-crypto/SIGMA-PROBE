@@ -1,0 +1,22 @@
+LICENSING STATUS — UPSTREAM PERMISSION NOT VERIFIED
+
+The supplied SIGMA-PROBE-main archive identifies its project as SIGMA-PROBE
+and names Etern1ty Crypto / eternity-crypto as the original author. Its README
+asserts an MIT license, but the archive contains no LICENSE file, copyright
+notice, or complete permission grant. That assertion alone has not been
+independently verified against the rights holder's repository or consent.
+
+This file is a licensing-status notice, NOT an MIT license and NOT a new
+permission grant over upstream code. This revision does not claim ownership
+of the original work and does not unilaterally relicense it.
+
+Before public redistribution, publishing to a package index, sublicensing,
+or commercial distribution, obtain the applicable license/authorization
+from the original rights holder, preserve required notices, and have the
+resulting distribution reviewed as appropriate. Authorization to inspect and
+modify a copy does not by itself establish all distribution rights.
+
+The package metadata uses LicenseRef-Upstream-Unverified to make this release
+gate visible. Replace this notice with the correct rights-holder-approved
+license only when those rights have been established. See NOTICE and
+docs/PRODUCTION.md. No legal certainty or warranty is represented here.

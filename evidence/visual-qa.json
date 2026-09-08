@@ -1,0 +1,42 @@
+{
+  "method": "Local Chromium rendering plus individual screenshot inspection",
+  "cases": [
+    {
+      "state": "desktop collapsed",
+      "viewport_width": 1200,
+      "screenshot_sha256": "5fdc5c202e7e55206fd2358ef22146bb6a753463b675f2194ce14a8515dfc29c",
+      "reviewed": true,
+      "note": "Visually reviewed all main sections; no clipping observed."
+    },
+    {
+      "state": "mobile expanded",
+      "viewport_width": 390,
+      "screenshot_sha256": "f1159918e5d9fc91f8dd17e2e998e923997a288bc1a985f8cfcb6bd2f93d343f",
+      "reviewed": true,
+      "note": "Visually reviewed expanded evidence, tags, references and playbooks."
+    },
+    {
+      "state": "dark mode",
+      "viewport_width": 1200,
+      "screenshot_sha256": "c8e4459de9ee5918ad7e338b8d70ca200eca0646c906e63112186294d16e71c4",
+      "reviewed": true,
+      "note": "Visually reviewed contrast and severity labels."
+    },
+    {
+      "state": "empty/mobile corrected",
+      "viewport_width": 390,
+      "screenshot_sha256": "f7d2d45ce59297f510ca0c047da71e041c3c1a9954a0c341a40ff1ea762dda87",
+      "reviewed": true,
+      "note": "Visually re-reviewed after fixing broken table-header words; no horizontal overflow."
+    },
+    {
+      "state": "partial input",
+      "viewport_width": 1200,
+      "screenshot_sha256": "c73e21809338cf357002b44780736815d1f2c70b4a8c8f5394b975e9d5b80b9b",
+      "reviewed": true,
+      "note": "Visually reviewed clear warning before KPI cards; invalid lines are disclosed."
+    }
+  ],
+  "scope": "Visual/layout review, not a comprehensive accessibility or cross-browser certification",
+  "correction": "Mobile table padding reduced and header word-breaking disabled; corrected empty state rendered and inspected again."
+}

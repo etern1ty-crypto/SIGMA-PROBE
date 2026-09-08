@@ -1,18 +1,22 @@
-version: '3.8'
-
 services:
   sigma-probe:
-    build: .
-    image: sigma-probe:latest
-    container_name: sigma-probe
-    restart: unless-stopped
+    build:
+      context: .
+    image: sigma-probe:3.0.0rc1
+    user: "${SIGMA_UID:-10001}:${SIGMA_GID:-10001}"
+    command: ["analyze", "--input", "/logs/access.log", "--output", "/reports", "--site", "demo-site"]
+    network_mode: none
+    read_only: true
+    restart: "no"
     volumes:
-      - ./logs:/app/logs
-      - ./config.yaml:/app/config.yaml:ro
-    environment:
-      - PYTHONUNBUFFERED=1
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
+      - ./examples:/logs:ro
+      - ./reports:/reports:rw
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 64

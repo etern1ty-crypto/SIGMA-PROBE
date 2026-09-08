@@ -1,0 +1,80 @@
+# SIGMA-PROBE 3.x — every key is validated; unknown settings are errors.
+# Paths in this file resolve relative to this file, not the shell's directory.
+schema_version = 1
+site = "demo-site"
+log_level = "INFO"
+allowlist_cidrs = []
+
+[input]
+files = ["examples/access.log"]
+format = "auto" # auto, nginx, apache, combined, common, json, jsonl
+invalid_policy = "skip" # skip or error
+max_error_ratio = 0.05
+trusted_proxy_cidrs = [] # Never trust X-Forwarded-For without exact proxy CIDRs.
+# since = "2026-09-08T00:00:00Z" # inclusive
+# until = "2026-09-09T00:00:00Z" # exclusive
+
+[limits]
+max_events = 100000
+max_actors = 10000
+max_input_bytes = 268435456 # decompressed bytes across all inputs
+max_line_bytes = 65536 # includes line terminators
+max_candidate_pairs = 100000
+max_pair_evaluations = 1000000
+
+[detection]
+temporal_min_events = 10
+temporal_cv = 0.15
+enumeration_min_paths = 10
+enumeration_error_ratio = 0.7
+burst_window_seconds = 300
+auth_failure_threshold = 10
+error_burst_threshold = 30
+login_paths = ["/login", "/wp-login.php", "/api/login", "/api/auth/login"]
+correlation_enabled = true
+correlation_min_paths = 2
+correlation_similarity = 0.7
+correlation_window_seconds = 300
+correlation_max_cluster_size = 50
+
+[scoring]
+repetition_bonus_cap = 15
+medium_threshold = 40
+high_threshold = 70
+
+[scoring.weights]
+LFI_RFI = 45
+SQL_INJECTION = 45
+XSS = 35
+COMMAND_INJECTION = 55
+SENSITIVE_PATH = 15
+SCANNER_UA = 5
+ENUMERATION = 25
+AUTOMATED_SCAN = 10
+AUTH_FAILURE_BURST = 40
+ERROR_BURST = 10
+IOC_MATCH = 35
+CORRELATED_ACTIVITY = 10
+MULTIPLE_SIGNALS = 0
+
+[privacy]
+anonymize_ips = false # true: HMAC pseudonyms; optional key in environment
+include_query = false # true exposes potentially sensitive parameter values
+
+[reporting]
+output_dir = "reports"
+formats = ["json", "html", "text"]
+max_display_actors = 100 # HTML/text only; JSON always contains every actor
+max_evidence_per_actor = 12 # HTML/text only
+sample_events = 3 # bounded event references per request-level signature
+
+[ioc]
+enabled = false
+max_file_bytes = 1048576
+max_entries = 10000
+# To activate the bundled synthetic snapshot, set enabled = true and uncomment:
+# [[ioc.files]]
+# name = "reviewed-local-ips"
+# path = "examples/ioc-ips.txt"
+# type = "ip" # ip, url_path, user_agent; no network URLs or regexes
+# expires_at = "2026-12-31T00:00:00Z" # optional; expired snapshots are rejected

@@ -1,325 +1,231 @@
-"""
-SIGMA-PROBE Core Data Models
-Архитектура v2.0 - 'Helios'
+"""Domain objects. Runtime validation uses only the Python standard library."""
+from __future__ import annotations
 
-Принцип 1: Данные — это не таблицы, это Объекты.
-"""
-
-import re
 import math
-from datetime import datetime
-from typing import Dict, List, Set, Any, Optional
-from ipaddress import IPv4Address
-from pydantic import BaseModel, Field
-from dataclasses import dataclass
+import re
 from collections import Counter
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any
+from urllib.parse import urlsplit
+
+from ..validation import SigmaProbeError, canonical_ip, integer, number, text, utc_datetime
+
+PAYLOAD_TAGS = frozenset({'LFI_RFI', 'SQL_INJECTION', 'XSS', 'COMMAND_INJECTION'})
+PROBE_TAGS = PAYLOAD_TAGS | {'SENSITIVE_PATH'}
+BEHAVIOR_TAGS = frozenset({'ENUMERATION', 'AUTOMATED_SCAN', 'AUTH_FAILURE_BURST', 'ERROR_BURST'})
 
 
-class LogEvent(BaseModel):
-    """Enhanced log event with built-in feature calculation capabilities"""
+@dataclass(slots=True)
+class LogEvent:
     timestamp: datetime
     source_ip: str
-    destination_ip: Optional[str] = None
     url: str
     method: str
     status_code: int
-    user_agent: Optional[str] = None
-    request_size: Optional[int] = None
-    response_size: Optional[int] = None
-    referer: Optional[str] = None
-    
-    # Computed features
-    entropy: Optional[float] = None
-    url_length: Optional[int] = None
-    path_depth: Optional[int] = None
-    query_params_count: Optional[int] = None
-    is_suspicious: bool = False
-    heuristic_flags: Set[str] = Field(default_factory=set)
-    
-    def calculate_features(self) -> None:
-        """Calculate all features for this event"""
-        self._calculate_entropy()
-        self._calculate_url_features()
-        self._apply_heuristics()
-    
-    def _calculate_entropy(self) -> None:
-        """Calculate Shannon entropy of the URL"""
-        if not self.url:
-            self.entropy = 0.0
-            return
-            
-        # Count character frequencies
-        char_counts = Counter(self.url)
-        total_chars = len(self.url)
-        
-        # Calculate entropy
-        entropy = 0.0
-        for count in char_counts.values():
-            if count > 0:
-                p = count / total_chars
-                entropy -= p * math.log2(p)
-        
-        self.entropy = entropy
-    
-    def _calculate_url_features(self) -> None:
-        """Calculate URL-based features"""
-        self.url_length = len(self.url)
-        
-        # Calculate path depth
-        path = self.url.split('?')[0]  # Remove query parameters
-        self.path_depth = len([p for p in path.split('/') if p])
-        
-        # Count query parameters
-        if '?' in self.url:
-            query_part = self.url.split('?')[1]
-            self.query_params_count = len(query_part.split('&'))
-        else:
-            self.query_params_count = 0
-    
-    def _apply_heuristics(self) -> None:
-        """Apply heuristic rules to detect suspicious patterns"""
-        self.heuristic_flags.clear()
-        
-        # LFI/RFI patterns
-        lfi_patterns = [
-            r'\.\./', r'\.\.\\',  # Directory traversal
-            r'file://', r'ftp://', r'http://',  # Remote file inclusion
-            r'php://', r'data://', r'zip://'   # PHP wrappers
-        ]
-        
-        for pattern in lfi_patterns:
-            if re.search(pattern, self.url, re.IGNORECASE):
-                self.heuristic_flags.add('LFI_RFI')
-                break
-        
-        # SQL Injection patterns
-        sql_patterns = [
-            r'(\'|\")(\s|%20)*(OR|AND)(\s|%20)*(\d+|\'[^\']*\')',
-            r'UNION(\s|%20)*SELECT',
-            r'DROP(\s|%20)*TABLE',
-            r'EXEC(\s|%20)*xp_',
-            r'(\'|\")(\s|%20)*(OR|AND)(\s|%20)*(\d+|\'[^\']*\')'
-        ]
-        
-        for pattern in sql_patterns:
-            if re.search(pattern, self.url, re.IGNORECASE):
-                self.heuristic_flags.add('SQL_INJECTION')
-                break
-        
-        # XSS patterns
-        xss_patterns = [
-            r'<script[^>]*>',
-            r'javascript:',
-            r'on\w+\s*=',
-            r'<iframe[^>]*>',
-            r'<object[^>]*>'
-        ]
-        
-        for pattern in xss_patterns:
-            if re.search(pattern, self.url, re.IGNORECASE):
-                self.heuristic_flags.add('XSS')
-                break
-        
-        # Command injection patterns. Two flavours:
-        # 1. Shell metacharacters followed by a command name.
-        # 2. Sensitive system paths or recognisable command tokens appearing
-        #    in URL parameters (common in vulnerable cgi/exec endpoints, e.g.
-        #    /exec.php?cmd=cat /etc/passwd).
-        cmd_patterns = [
-            r'(\||&|;|`|\$\(|\$\{)\s*(cat|ls|pwd|whoami|id|uname)\b',
-            r'(\||&|;|`|\$\(|\$\{)\s*(wget|curl|nc|telnet|bash|sh)\b',
-            r'(\||&|;|`|\$\(|\$\{)\s*(rm|del|format|chmod|chown)\b',
-            r'/etc/passwd|/etc/shadow|/proc/self/environ',
-            r'\b(cat|ls|whoami|uname)\b\s+/[A-Za-z]',
-        ]
+    user_agent: str = ''
+    host: str | None = None
+    response_size: int = 0
+    input_id: str = 'input-1'
+    line_number: int = 1
+    path: str = ''
+    entropy: float = 0.0
+    heuristic_flags: set[str] = field(default_factory=set)
+    ioc_feeds: set[str] = field(default_factory=set)
 
-        for pattern in cmd_patterns:
-            if re.search(pattern, self.url, re.IGNORECASE):
-                self.heuristic_flags.add('COMMAND_INJECTION')
-                break
-        
-        # Suspicious file extensions
-        suspicious_extensions = [
-            '.php', '.asp', '.aspx', '.jsp', '.cgi', '.pl', '.py',
-            '.exe', '.bat', '.cmd', '.com', '.pif', '.scr'
-        ]
-        
-        for ext in suspicious_extensions:
-            if ext.lower() in self.url.lower():
-                self.heuristic_flags.add('SUSPICIOUS_EXTENSION')
-                break
-        
-        # High entropy (encrypted/encoded content)
-        if self.entropy and self.entropy > 4.5:
-            self.heuristic_flags.add('HIGH_ENTROPY')
-        
-        # Long URLs (potential overflow attacks)
-        if self.url_length > 2000:
-            self.heuristic_flags.add('LONG_URL')
-        
-        # Many query parameters (potential parameter pollution)
-        if self.query_params_count and self.query_params_count > 10:
-            self.heuristic_flags.add('MANY_PARAMS')
-        
-        # Suspicious user agents
-        if self.user_agent:
-            suspicious_ua_patterns = [
-                r'bot|crawler|spider|scraper',
-                r'nmap|sqlmap|nikto|dirb',
-                r'python|curl|wget|lynx'
-            ]
-            
-            for pattern in suspicious_ua_patterns:
-                if re.search(pattern, self.user_agent, re.IGNORECASE):
-                    self.heuristic_flags.add('SUSPICIOUS_USER_AGENT')
-                    break
-        
-        # Set overall suspicious flag
-        self.is_suspicious = len(self.heuristic_flags) > 0
+    def __post_init__(self) -> None:
+        self.timestamp = utc_datetime(self.timestamp)
+        self.source_ip = canonical_ip(self.source_ip)
+        self.url = text(self.url, 'url', 16_384)
+        if not (self.url.startswith('/') or self.url.startswith(('http://', 'https://')) or self.url == '*'):
+            raise SigmaProbeError('url: expected origin-form, absolute HTTP(S) URL, or *')
+        if self.url.startswith(('http://', 'https://')):
+            try:
+                if not urlsplit(self.url).hostname:
+                    raise ValueError('Missing hostname')
+            except ValueError as exc:
+                raise SigmaProbeError('url: malformed absolute URL') from exc
+        if self.host is not None:
+            self.host = text(self.host, 'host', 255).casefold().rstrip('.')
+        self.method = text(self.method, 'method', 32).upper()
+        if not re.fullmatch(r"[A-Z!#$%&'*+.^_`|~-]+", self.method):
+            raise SigmaProbeError('method: invalid HTTP method token')
+        integer(self.status_code, 'status_code', 100, 599)
+        integer(self.response_size, 'response_size', 0, 2**63 - 1)
+        text(self.user_agent, 'user_agent', 4096, empty=True)
+        if not re.fullmatch(r'input-[1-9][0-9]*', self.input_id):
+            raise SigmaProbeError('input_id must be input-N')
+        integer(self.line_number, 'line_number', 1, 2**63 - 1)
+
+    def reference(self) -> dict[str, Any]:
+        return {
+            'input_id': self.input_id, 'line': self.line_number,
+            'timestamp': self.timestamp.isoformat(), 'method': self.method,
+            'url': self.url, 'status_code': self.status_code,
+            'ioc_feeds': sorted(self.ioc_feeds),
+        }
 
 
-class ActorProfile(BaseModel):
-    """Enhanced actor profile with tagging system and evidence trail"""
+@dataclass(slots=True)
+class Evidence:
+    source: str
+    kind: str
+    details: str
+    confidence: float = 0.7
+    metrics: dict[str, int | float | str] = field(default_factory=dict)
+    references: list[dict[str, Any]] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        text(self.source, 'evidence.source', 64)
+        text(self.kind, 'evidence.kind', 64)
+        text(self.details, 'evidence.details', 1024)
+        number(self.confidence, 'evidence.confidence', 0, 1)
+        for value in self.metrics.values():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise SigmaProbeError('Evidence metrics must be finite')
+
+
+@dataclass(slots=True)
+class ActorProfile:
     ip_address: str
-    events: List[LogEvent] = Field(default_factory=list)
-    
-    # Behavioral metrics
+    events: list[LogEvent] = field(default_factory=list)
     total_requests: int = 0
-    unique_urls: int = 0
-    avg_entropy: float = 0.0
-    max_entropy: float = 0.0
-    url_diversity_ratio: float = 0.0
-    anomaly_ratio: float = 0.0
-    centrality: float = 0.0
-    threat_score: float = 0.0
-    
-    # Tagging system
-    tags: Set[str] = Field(default_factory=set)
-    
-    # Evidence trail
-    evidence_trail: List[Dict[str, Any]] = Field(default_factory=list)
-    
-    # Behavioral vector for clustering
-    url_frequency_vector: Dict[str, float] = Field(default_factory=dict)
-    behavioral_signatures: Dict[str, Any] = Field(default_factory=dict)
+    total_response_bytes: int = 0
+    first_seen: datetime | None = None
+    last_seen: datetime | None = None
+    path_counts: Counter[str] = field(default_factory=Counter)
+    status_counts: Counter[int] = field(default_factory=Counter)
+    tag_counts: Counter[str] = field(default_factory=Counter)
+    tags: set[str] = field(default_factory=set)
+    evidence_trail: list[Evidence] = field(default_factory=list)
+    threat_score: int = 0
+    severity: str = 'info'
+    score_breakdown: dict[str, int] = field(default_factory=dict)
+    suppressed: bool = False
+    mitre_techniques: list[dict[str, str]] = field(default_factory=list)
+    behavioral_signatures: dict[str, Any] = field(default_factory=dict)
+    _entropy_sum: float = 0.0
+    _max_entropy: float = 0.0
+
+    def __post_init__(self) -> None:
+        self.ip_address = canonical_ip(self.ip_address)
+        initial = list(self.events)
+        self.events = []
+        for event in initial:
+            self.add_event(event)
+
+    @property
+    def unique_urls(self) -> int:
+        return len(self.path_counts)
+
+    @property
+    def avg_entropy(self) -> float:
+        return self._entropy_sum / self.total_requests if self.total_requests else 0.0
+
+    @property
+    def max_entropy(self) -> float:
+        return self._max_entropy
+
+    @property
+    def url_diversity_ratio(self) -> float:
+        return self.unique_urls / self.total_requests if self.total_requests else 0.0
+
+    @property
+    def error_ratio(self) -> float:
+        return sum(n for status, n in self.status_counts.items() if status >= 400) / max(1, self.total_requests)
 
     def add_event(self, event: LogEvent) -> None:
-        """Add an event to the profile and refresh aggregate metrics.
-
-        Keeping metrics in sync here avoids consumers having to remember to
-        call ``calculate_metrics`` after every append, which was a frequent
-        source of stale-state bugs in earlier versions.
-        """
+        """O(1) aggregate update; feature extraction must precede ingestion here."""
+        if event.source_ip != self.ip_address:
+            raise SigmaProbeError('Cannot add an event belonging to a different IP')
+        if not event.path:
+            raise SigmaProbeError('Event must be enriched before profiling')
         self.events.append(event)
-        self.calculate_metrics()
+        self.total_requests += 1
+        self.total_response_bytes += event.response_size
+        self.path_counts[event.path] += 1
+        self.status_counts[event.status_code] += 1
+        self.tag_counts.update(event.heuristic_flags)
+        self.tags.update(event.heuristic_flags)
+        self._entropy_sum += event.entropy
+        self._max_entropy = max(self._max_entropy, event.entropy)
+        self.first_seen = min(self.first_seen, event.timestamp) if self.first_seen else event.timestamp
+        self.last_seen = max(self.last_seen, event.timestamp) if self.last_seen else event.timestamp
 
-    def calculate_metrics(self) -> None:
-        """Calculate behavioral metrics"""
-        self.total_requests = len(self.events)
-        
-        # URL diversity
-        unique_urls = set(event.url for event in self.events)
-        self.unique_urls = len(unique_urls)
-        self.url_diversity_ratio = self.unique_urls / self.total_requests if self.total_requests > 0 else 0.0
-        
-        # Entropy metrics
-        entropies = [event.entropy for event in self.events if event.entropy is not None]
-        if entropies:
-            self.avg_entropy = sum(entropies) / len(entropies)
-            self.max_entropy = max(entropies)
-        
-        # Build URL frequency vector for clustering
-        url_counts = Counter(event.url for event in self.events)
-        total_events = len(self.events)
-        self.url_frequency_vector = {
-            url: count / total_events 
-            for url, count in url_counts.items()
-        }
-    
-    def add_evidence(self, source: str, evidence_type: str, details: str, confidence: float = 1.0) -> None:
-        """Add evidence to the trail"""
-        self.evidence_trail.append({
-            'timestamp': datetime.now().isoformat(),
-            'source': source,
-            'type': evidence_type,
-            'details': details,
-            'confidence': confidence
-        })
-    
-    def add_tag(self, tag: str, source: str = "unknown") -> None:
-        """Add a tag to the actor"""
-        self.tags.add(tag)
-        self.add_evidence(source, "tag_added", f"Added tag: {tag}")
-    
-    def get_behavioral_vector(self) -> List[float]:
-        """Get normalized behavioral vector for clustering"""
-        # Normalize URL frequency vector to fixed size
-        top_urls = sorted(self.url_frequency_vector.items(), key=lambda x: x[1], reverse=True)[:50]
-        
-        # Pad or truncate to 50 dimensions
-        vector = [freq for _, freq in top_urls]
-        while len(vector) < 50:
-            vector.append(0.0)
-        vector = vector[:50]
-        
-        # Normalize
-        total = sum(vector)
-        if total > 0:
-            vector = [v / total for v in vector]
-        
-        return vector
+    def add_evidence(self, evidence: Evidence) -> None:
+        # Idempotent per source/kind: repeated scoring/detection must not grow
+        # evidence forever or change the report's meaning.
+        for index, existing in enumerate(self.evidence_trail):
+            if (existing.source, existing.kind) == (evidence.source, evidence.kind):
+                self.evidence_trail[index] = evidence
+                return
+        self.evidence_trail.append(evidence)
+
+    def get_behavioral_vector(self) -> dict[str, float]:
+        """Sparse coordinates retain path identity; no unrelated top-N ranks."""
+        denominator = max(self.total_requests, 1)
+        return {path: count / denominator for path, count in sorted(self.path_counts.items())}
 
 
-class ThreatCampaign(BaseModel):
-    """Enhanced threat campaign with evidence trail"""
+@dataclass(slots=True)
+class ThreatCampaign:
     campaign_id: str
-    actors: List[ActorProfile] = Field(default_factory=list)
+    actors: list[ActorProfile]
     threat_score: float = 0.0
-    primary_tags: Set[str] = Field(default_factory=set)
-    campaign_type: str = "unknown"
-    
-    # Evidence trail
-    evidence_trail: List[Dict[str, Any]] = Field(default_factory=list)
-    
-    def add_actor(self, actor: ActorProfile) -> None:
-        """Add actor to campaign"""
-        self.actors.append(actor)
-        self._update_campaign_metrics()
-    
-    def _update_campaign_metrics(self) -> None:
-        """Update campaign-level metrics"""
-        if not self.actors:
-            return
-        
-        # Aggregate threat scores
-        scores = [actor.get('threat_score', 0.0) for actor in self.actors if hasattr(actor, 'get')]
-        if scores:
-            self.threat_score = sum(scores) / len(scores)
-        
-        # Aggregate tags
-        all_tags = set()
-        for actor in self.actors:
-            if hasattr(actor, 'tags'):
-                all_tags.update(actor.tags)
-        self.primary_tags = all_tags
-        
-        # Determine campaign type based on most common tags
-        tag_counts = Counter()
-        for actor in self.actors:
-            if hasattr(actor, 'tags'):
-                for tag in actor.tags:
-                    tag_counts[tag] += 1
-        
-        if tag_counts:
-            self.campaign_type = tag_counts.most_common(1)[0][0]
-    
-    def add_evidence(self, source: str, evidence_type: str, details: str) -> None:
-        """Add evidence to campaign trail"""
-        self.evidence_trail.append({
-            'timestamp': datetime.now().isoformat(),
-            'source': source,
-            'type': evidence_type,
-            'details': details
-        })
+    primary_tags: list[str] = field(default_factory=list)
+    campaign_type: str = 'correlated_activity'
+    mitre_techniques: list[dict[str, str]] = field(default_factory=list)
 
-PipelineContext = Dict[str, Any]
+    def update_metrics(self) -> None:
+        self.threat_score = round(sum(a.threat_score for a in self.actors) / len(self.actors), 2) if self.actors else 0.0
+        self.primary_tags = sorted({tag for actor in self.actors for tag in actor.tags})
+
+
+@dataclass(slots=True)
+class InputFileStats:
+    input_id: str
+    name: str
+    sha256: str = ''
+    bytes_read: int = 0
+    lines: int = 0
+    blank: int = 0
+    invalid: int = 0
+    filtered: int = 0
+    accepted: int = 0
+
+
+@dataclass(slots=True)
+class IngestionStats:
+    sources: list[InputFileStats] = field(default_factory=list)
+    errors: list[dict[str, int | str]] = field(default_factory=list)
+
+    def total(self, name: str) -> int:
+        return sum(getattr(source, name) for source in self.sources)
+
+    @property
+    def partial(self) -> bool:
+        return self.total('invalid') > 0
+
+
+@dataclass(slots=True)
+class Recommendation:
+    id: str
+    priority: str
+    title: str
+    actor_ids: list[str]
+    action_items: list[str]
+    rationale: str
+
+
+@dataclass(slots=True)
+class AnalysisResult:
+    site: str
+    actors: list[ActorProfile]
+    campaigns: list[ThreatCampaign]
+    recommendations: list[Recommendation]
+    ingestion: IngestionStats
+    detector_summary: dict[str, Any]
+    generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    elapsed_seconds: float = 0.0
+    report_paths: dict[str, str] = field(default_factory=dict)
+    report: dict[str, Any] = field(default_factory=dict)

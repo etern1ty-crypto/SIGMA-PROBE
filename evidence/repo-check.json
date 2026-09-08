@@ -1,0 +1,8 @@
+{
+  "python_files_checked": 40,
+  "local_documentation_links_checked": 64,
+  "runtime_dependencies": 0,
+  "build_dependencies": 0,
+  "errors": [],
+  "scope": "syntax, runtime imports, placeholders, version consistency, local links; not a full type checker or vulnerability scanner"
+}

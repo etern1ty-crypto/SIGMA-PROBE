@@ -1,88 +1,29 @@
-"""
-SIGMA-PROBE Pipeline Architecture
-Принцип 2: Не линейное выполнение, а конвейерная обработка (Pipeline)
-"""
+"""A concrete, typed pipeline contract without no-op detector implementations."""
+from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Iterator, Optional
-from sigma_probe.models.core import LogEvent, ActorProfile, ThreatCampaign, PipelineContext
+import logging
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
+from typing import Any
 
+from ..models.core import ActorProfile, ThreatCampaign
 
-class PipelineStage(ABC):
-    """Базовый класс для всех этапов конвейера"""
-    
-    def __init__(self, config: Dict[str, Any]):
-        self.config = config
-        self.name = self.__class__.__name__
-    
-    @abstractmethod
-    def process(self, context: PipelineContext) -> PipelineContext:
-        """Обрабатывает данные и возвращает обновленный контекст"""
-        pass
-    
-    def __str__(self):
-        return f"{self.name}"
+logger = logging.getLogger(__name__)
 
 
-class Enricher(PipelineStage):
-    """Базовый класс для обогатителей признаков"""
-    
-    @abstractmethod
-    def enrich(self, event: LogEvent) -> Dict[str, float]:
-        """Обогащает событие признаками"""
-        pass
-    
-    def process(self, context: PipelineContext) -> PipelineContext:
-        """Обрабатывает поток событий и обогащает их"""
-        events = context.get('events', [])
-        
-        for event in events:
-            features = self.enrich(event)
-            event.features.update(features)
-        
-        context['events'] = events
-        return context
-
-
-class Detector(PipelineStage):
-    """Базовый класс для детекторов сигнатур"""
-    
-    @abstractmethod
-    def detect(self, actors: Dict[str, ActorProfile]) -> Dict[str, ActorProfile]:
-        """Анализирует профили акторов и добавляет сигнатуры"""
-        pass
-    
-    def process(self, context: PipelineContext) -> PipelineContext:
-        """Обрабатывает профили акторов"""
-        actors = context.get('actors', {})
-        updated_actors = self.detect(actors)
-        context['actors'] = updated_actors
-        return context
+@dataclass(slots=True)
+class AnalysisContext:
+    actors: list[ActorProfile]
+    campaigns: list[ThreatCampaign] = field(default_factory=list)
+    summary: dict[str, Any] = field(default_factory=dict)
 
 
 class Pipeline:
-    """Основной конвейер обработки"""
-    
-    def __init__(self, stages: List[PipelineStage]):
-        self.stages = stages
-    
-    def execute(self, initial_context: PipelineContext) -> PipelineContext:
-        """Выполняет все этапы конвейера"""
-        context = initial_context.copy()
-        
+    def __init__(self, stages: Sequence[Callable[[AnalysisContext], None]]) -> None:
+        self.stages = tuple(stages)
+
+    def execute(self, context: AnalysisContext) -> AnalysisContext:
         for stage in self.stages:
-            print(f"Выполняется этап: {stage}")
-            context = stage.process(context)
-        
+            logger.debug('Running stage %s', stage.__qualname__)
+            stage(context)
         return context
-    
-    def add_stage(self, stage: PipelineStage):
-        """Добавляет новый этап в конвейер"""
-        self.stages.append(stage)
-    
-    def get_stage(self, stage_name: str) -> Optional[PipelineStage]:
-        """Возвращает этап по имени"""
-        for stage in self.stages:
-            if stage.name == stage_name:
-                return stage
-        return None 

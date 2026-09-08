@@ -1,307 +1,238 @@
-"""
-SIGMA-PROBE Main Module
-Архитектура v2.0 - 'Helios'
+"""CLI and reusable offline analysis orchestration. Importing has no side effects."""
+from __future__ import annotations
 
-Принцип 4: Конвейер — это не просто последовательность, это интеллектуальная система.
-"""
-
-import yaml
+import argparse
+import copy
+import json
 import logging
+import os
+import signal
 import sys
+import threading
+import time
+from collections.abc import Iterator, Sequence
+from contextlib import closing, contextmanager
+from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Any
-from datetime import datetime
-from multiprocessing import Pool, cpu_count
+from typing import Any, BinaryIO
 
-from .pipeline.ingestion import LogIngestionStage
-from .pipeline.enrichment import EnrichmentStage
-from .pipeline.profiling import ActorProfilingStage
-from .pipeline.detectors import (
-    FFTDetector, GraphDetector, AnomalyDetector, BehavioralClusteringDetector
-)
-from .pipeline.metadetector import MetaDetector
-from .pipeline.recommendations import NarrativeEngine
-from .pipeline.scoring import ScoringEngine
-from .pipeline.reporting import ReportingStage
+from . import __version__
+from .config import Settings, load_config
 from .intelligence.ioc_manager import IoCManager
 from .intelligence.mitre_mapping import MitreMapping
-from .models.core import LogEvent, ActorProfile, ThreatCampaign
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('sigma_probe.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
+from .models.core import AnalysisResult
+from .pipeline.base import AnalysisContext, Pipeline
+from .pipeline.detectors import BehaviorDetector, GraphDetector, TemporalDetector
+from .pipeline.enrichment import EnrichmentStage
+from .pipeline.ingestion import LogIngestionStage
+from .pipeline.metadetector import MetaDetector
+from .pipeline.profiling import ActorProfilingStage
+from .pipeline.recommendations import NarrativeEngine
+from .pipeline.reporting import ReportingStage, build_report, json_text
+from .pipeline.scoring import ScoringEngine
+from .privacy import PrivacyProjector
+from .validation import RunInterrupted, SigmaProbeError
 
 logger = logging.getLogger(__name__)
 
-def enrich_event_worker(event: LogEvent) -> LogEvent:
-    """Worker function for parallel enrichment"""
-    event.calculate_features()
-    return event
 
-class HeliosPipeline:
-    """Enhanced pipeline with context sharing, evidence trail, and parallel processing"""
-    
-    def __init__(self, config_path: str = "config.yaml"):
-        self.config = self._load_config(config_path)
-        self.context = {}  # Shared context between stages
-        self.evidence_summary = []
-        
-        # Initialize pipeline stages
-        self._initialize_stages()
-        
-    def _load_config(self, config_path: str) -> Dict[str, Any]:
-        """Load configuration from YAML file"""
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-            logger.info(f"Configuration loaded from {config_path}")
-            return config
-        except Exception as e:
-            logger.error(f"Failed to load configuration: {e}")
-            raise
-    
-    def _initialize_stages(self):
-        """Initialize all pipeline stages"""
-        # Ingestion stage
-        self.ingestion = LogIngestionStage(self.config.get('ingestion', {}))
-        
-        # Enrichment stage (simplified)
-        self.enrichment = EnrichmentStage(self.config.get('enrichment', {}))
-        
-        # Profiling stage
-        self.profiling = ActorProfilingStage(self.config.get('profiling', {}))
-        
-        # Detection stages
-        detection_config = self.config.get('detection', {})
-        self.detectors = []
-        
-        detector_classes = {
-            'FFTDetector': FFTDetector,
-            'GraphDetector': GraphDetector,
-            'AnomalyDetector': AnomalyDetector,
-            'BehavioralClusteringDetector': BehavioralClusteringDetector,
-            'MetaDetector': MetaDetector
-        }
-        
-        for detector_name in detection_config.get('detectors', []):
-            if detector_name in detector_classes:
-                detector_config = detection_config.get(f'{detector_name.lower()}_detector', {})
-                detector = detector_classes[detector_name](detector_config)
-                self.detectors.append(detector)
-                logger.info(f"Initialized detector: {detector_name}")
-        
-        # Scoring engine
-        scoring_config = self.config.get('scoring_engine', {})
-        self.scoring_engine = ScoringEngine(scoring_config)
-        
-        # Narrative engine
-        self.narrative_engine = NarrativeEngine(self.config.get('recommendations', {}))
-        
-        # MITRE mapping
-        self.mitre_mapping = MitreMapping()
-        
-        # Reporting stage
-        self.reporting = ReportingStage(self.config.get('reporting', {}))
-    
-    def run(self) -> Dict[str, Any]:
-        """Run the complete pipeline with context sharing and parallel processing"""
-        logger.info("Starting SIGMA-PROBE Helios pipeline")
-        start_time = datetime.now()
-        
-        try:
-            # Stage 1: Ingestion
-            logger.info("=== Stage 1: Ingestion ===")
-            events = self.ingestion.process()
-            logger.info(f"Ingested {len(events)} events")
-            
-            # Stage 2: Enrichment with parallel processing
-            logger.info("=== Stage 2: Enrichment ===")
-            enriched_events = self._parallel_enrichment(events)
-            logger.info(f"Enriched {len(enriched_events)} events")
-            
-            # Stage 2.5: IoC Integration
-            logger.info("=== Stage 2.5: IoC Integration ===")
-            if 'ioc_feeds' in self.config:
-                self.ioc_manager = IoCManager(self.config['ioc_feeds'])
-                self.ioc_manager.update_feeds()
-                logger.info("IoC feeds updated")
-            
-            # Stage 3: Profiling
-            logger.info("=== Stage 3: Profiling ===")
-            profiling_context = {'events': enriched_events}
-            profiling_result = self.profiling.process(profiling_context)
-            actors = list(profiling_result.get('actors', {}).values())
-            logger.info(f"Created {len(actors)} actor profiles")
-            
-            # Stage 4: Detection with Context Sharing
-            logger.info("=== Stage 4: Detection ===")
-            for detector in self.detectors:
-                logger.info(f"Running {detector.name}")
-                context_update = detector.detect(actors, self.context)
-                self.context.update(context_update)
-                logger.info(f"Context updated by {detector.name}")
-            
-            # Stage 5: Scoring with Context
-            logger.info("=== Stage 5: Scoring ===")
-            scored_actors = self.scoring_engine.score_actors(actors, self.context)
-            logger.info(f"Scored {len(scored_actors)} actors")
-            
-            # Stage 6: Campaign Clustering
-            logger.info("=== Stage 6: Campaign Clustering ===")
-            campaigns = self.scoring_engine.cluster_campaigns(scored_actors, self.context)
-            logger.info(f"Created {len(campaigns)} campaigns")
-            
-            # Stage 7: Recommendations & MITRE Mapping
-            logger.info("=== Stage 7: Recommendations & MITRE Mapping ===")
-            recommendations = self.narrative_engine.generate_recommendations(scored_actors, campaigns)
-            
-            # Add MITRE techniques to actors and campaigns
-            for actor in scored_actors:
-                actor.mitre_techniques = self.mitre_mapping.get_all_techniques_for_actor(actor)
-            
-            for campaign in campaigns:
-                campaign.mitre_techniques = self.mitre_mapping.get_all_techniques_for_campaign(campaign)
-            
-            logger.info(f"Generated {len(recommendations)} recommendations")
-            
-            # Stage 8: Reporting
-            logger.info("=== Stage 8: Reporting ===")
-            report_data = self._prepare_report_data(scored_actors, campaigns, recommendations)
-            reports = self.reporting.generate_reports(report_data)
-            
-            # Calculate execution time
-            execution_time = datetime.now() - start_time
-            
-            # Print evidence summary
-            self._print_evidence_summary(scored_actors, campaigns)
-            
-            # Print context summary
-            self._print_context_summary()
-            
-            logger.info(f"Pipeline completed in {execution_time}")
-            
-            return {
-                'actors': scored_actors,
-                'campaigns': campaigns,
-                'context': self.context,
-                'execution_time': execution_time,
-                'reports': reports
-            }
-            
-        except Exception as e:
-            logger.error(f"Pipeline failed: {e}")
-            raise
-    
-    def _parallel_enrichment(self, events: List[LogEvent]) -> List[LogEvent]:
-        """Process events in parallel using multiprocessing"""
-        pipeline_config = self.config.get('pipeline', {})
-        parallel_config = pipeline_config.get('parallel', {})
-        
-        if parallel_config.get('enabled', False):
-            max_workers = parallel_config.get('max_workers', min(4, cpu_count()))
-            logger.info(f"Using parallel processing with {max_workers} workers")
-            
-            # Process events in parallel
-            with Pool(processes=max_workers) as pool:
-                enriched_events = pool.map(enrich_event_worker, events)
-            
-            return enriched_events
-        else:
-            # Fallback to sequential processing
-            logger.info("Using sequential processing")
-            return self.enrichment.process(events)
-    
-    def _prepare_report_data(self, actors: List[ActorProfile], campaigns: List[ThreatCampaign], 
-                           recommendations: List[Any] = None) -> Dict[str, Any]:
-        """Prepare data for reporting"""
-        return {
-            'actors': actors,
-            'campaigns': campaigns,
-            'recommendations': recommendations if recommendations else [],
-            'context': self.context,
-            'pipeline_config': self.config,
-            'generated_at': datetime.now().isoformat()
-        }
-    
-    def _print_evidence_summary(self, actors: List[ActorProfile], campaigns: List[ThreatCampaign]):
-        """Print a summary of evidence trails"""
-        print("\n" + "="*80)
-        print("EVIDENCE TRAIL SUMMARY")
-        print("="*80)
-        
-        # Actor evidence summary
-        print(f"\nACTOR EVIDENCE ({len(actors)} actors):")
-        print("-" * 60)
-        
-        for i, actor in enumerate(actors[:5]):  # Show first 5 actors
-            print(f"\nActor {i+1}: {actor.ip_address}")
-            print(f"  Tags: {', '.join(actor.tags) if actor.tags else 'None'}")
-            print(f"  Threat Score: {getattr(actor, 'threat_score', 0.0):.2f}")
-            print(f"  Evidence Entries: {len(actor.evidence_trail)}")
-            
-            # Show recent evidence
-            recent_evidence = actor.evidence_trail[-3:] if actor.evidence_trail else []
-            for evidence in recent_evidence:
-                print(f"    - {evidence['source']}: {evidence['details']}")
-        
-        if len(actors) > 5:
-            print(f"\n... and {len(actors) - 5} more actors")
-        
-        # Campaign evidence summary
-        print(f"\nCAMPAIGN EVIDENCE ({len(campaigns)} campaigns):")
-        print("-" * 60)
-        
-        for i, campaign in enumerate(campaigns):
-            print(f"\nCampaign {i+1}: {campaign.campaign_id}")
-            print(f"  Type: {campaign.campaign_type}")
-            print(f"  Actors: {len(campaign.actors)}")
-            print(f"  Threat Score: {campaign.threat_score:.2f}")
-            print(f"  Primary Tags: {', '.join(campaign.primary_tags) if campaign.primary_tags else 'None'}")
-            print(f"  Evidence Entries: {len(campaign.evidence_trail)}")
-            
-            # Show recent evidence
-            recent_evidence = campaign.evidence_trail[-2:] if campaign.evidence_trail else []
-            for evidence in recent_evidence:
-                print(f"    - {evidence['source']}: {evidence['details']}")
-    
-    def _print_context_summary(self):
-        """Print a summary of shared context"""
-        print("\n" + "="*80)
-        print("CONTEXT SUMMARY")
-        print("="*80)
-        
-        for context_key, context_data in self.context.items():
-            print(f"\n{context_key.upper()}:")
-            if isinstance(context_data, dict):
-                for key, value in context_data.items():
-                    print(f"  {key}: {value}")
-            else:
-                print(f"  {context_data}")
+class AnalysisPipeline:
+    def __init__(self, config: Settings | str | Path | None = None, *, hmac_key: str | None = None) -> None:
+        self.config = copy.deepcopy(config) if isinstance(config, Settings) else load_config(config)
+        self._hmac_key = hmac_key
 
-def main():
-    """Main entry point"""
+    def run(
+        self, input_paths: str | Sequence[str] | None = None, *,
+        write_reports: bool = True, stdin: BinaryIO | None = None,
+    ) -> AnalysisResult:
+        """One finite run, one site, one fresh state. Raw API results are sensitive."""
+        started = time.perf_counter()
+        paths = self.config.input.files if input_paths is None else ((input_paths,) if isinstance(input_paths, str) else tuple(input_paths))
+        if not paths:
+            raise SigmaProbeError('Supply --input or configure input.files')
+        config = replace(self.config, input=replace(self.config.input, files=tuple(paths)))
+        projector = PrivacyProjector(config.privacy, self._hmac_key if config.privacy.anonymize_ips else None)
+        ingestion = LogIngestionStage(config.input, config.limits)
+        enrichment = EnrichmentStage()
+        intelligence = IoCManager(config.ioc)
+
+        with closing(ingestion.process(list(paths), stdin)) as incoming:
+            enriched = (intelligence.enrich_event(enrichment.process(event)) for event in incoming)
+            actors = ActorProfilingStage(config).process(enriched)
+        context = AnalysisContext(actors=actors)
+        Pipeline([
+            BehaviorDetector(config.detection).process,
+            TemporalDetector(config.detection).process,
+            GraphDetector(config.detection, config.limits).process,
+            MetaDetector().process,
+            ScoringEngine(config.scoring).process,
+        ]).execute(context)
+        context.summary['ioc'] = intelligence.get_stats()
+        mapping = MitreMapping()
+        for actor in context.actors:
+            actor.mitre_techniques = mapping.get_techniques_for_tags(actor.tags)
+        for campaign in context.campaigns:
+            campaign.mitre_techniques = mapping.get_techniques_for_tags(campaign.primary_tags)
+        result = AnalysisResult(
+            site=config.site, actors=context.actors, campaigns=context.campaigns,
+            recommendations=NarrativeEngine().generate_recommendations(context.actors),
+            ingestion=ingestion.stats, detector_summary=context.summary,
+            elapsed_seconds=time.perf_counter() - started,
+        )
+        result.report = build_report(result, config, projector)
+        if write_reports:
+            result.report_paths = ReportingStage(config).write(result.report)
+        logger.info('Analysis complete: events=%d actors=%d partial=%s', result.ingestion.total('accepted'), len(result.actors), result.ingestion.partial)
+        return result
+
+
+# A name-level migration alias only. The 3.x return type and configuration
+# are intentionally new and documented; no misleading emulation of v2.
+HeliosPipeline = AnalysisPipeline
+
+
+class JsonLogFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {'timestamp': datetime.now(timezone.utc).isoformat(), 'level': record.levelname, 'logger': record.name, 'message': record.getMessage()}
+        if record.exc_info:
+            payload['exception'] = self.formatException(record.exc_info)
+        return json.dumps(payload, ensure_ascii=False)
+
+
+@contextmanager
+def _interrupt_handlers() -> Iterator[None]:
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+
+    def stop(signum: int, frame: Any) -> None:
+        # Ignore repeated interruptions until cleanup finishes. Raising also
+        # interrupts a blocking stdin read, unlike a polling-only stop flag.
+        for sig in previous:
+            signal.signal(sig, signal.SIG_IGN)
+        raise RunInterrupted(signum)
+
+    for sig in previous:
+        signal.signal(sig, stop)
     try:
-        # Initialize and run pipeline
-        pipeline = HeliosPipeline()
-        results = pipeline.run()
-        
-        print(f"\nPipeline completed successfully!")
-        print(f"Processed {len(results['actors'])} actors")
-        print(f"Created {len(results['campaigns'])} campaigns")
-        print(f"Execution time: {results['execution_time']}")
-        
-        return results
-        
-    except Exception as e:
-        logger.error(f"Pipeline execution failed: {e}")
-        print(f"Error: {e}")
-        return None
+        yield
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
 
-if __name__ == "__main__":
-    main() 
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog='sigma-probe', description='Offline web access-log security triage. No scanning, uploads or automatic blocking.')
+    parser.add_argument('--version', action='version', version=f'sigma-probe {__version__}')
+    commands = parser.add_subparsers(dest='command', required=True)
+    validate = commands.add_parser('validate-config', help='Validate TOML without analyzing or writing reports')
+    validate.add_argument('--config', '-c')
+    analyze = commands.add_parser('analyze', help='Analyze a finite set of local logs')
+    analyze.add_argument('--config', '-c', help='TOML configuration path')
+    analyze.add_argument('--input', '-i', action='append', help='Input file (repeatable), .gz, or - for stdin')
+    analyze.add_argument('--output', '-o', help='Parent directory for a new atomic report bundle')
+    analyze.add_argument('--input-format', choices=('auto', 'nginx', 'apache', 'combined', 'common', 'json', 'jsonl'))
+    analyze.add_argument('--format', action='append', choices=('json', 'html', 'text'), help='Report format (repeatable)')
+    analyze.add_argument('--site', help='Exactly one site/tenant per run')
+    analyze.add_argument('--since', help='Inclusive ISO 8601 timestamp with timezone')
+    analyze.add_argument('--until', help='Exclusive ISO 8601 timestamp with timezone')
+    analyze.add_argument('--strict', action='store_true', help='Reject the first malformed input record')
+    analyze.add_argument('--max-events', type=int)
+    analyze.add_argument('--max-input-bytes', type=int)
+    analyze.add_argument('--allowlist', action='append', help='Explicit IP/CIDR suppression; evidence is retained')
+    analyze.add_argument('--anonymize-ips', action=argparse.BooleanOptionalAction, default=None)
+    analyze.add_argument('--include-query', action=argparse.BooleanOptionalAction, default=None)
+    analyze.add_argument('--fail-on', choices=('none', 'low', 'medium', 'high'), default='none', help='Exit 3 at or above this severity, after writing reports')
+    analyze.add_argument('--log-level', choices=('DEBUG', 'INFO', 'WARNING', 'ERROR'))
+    analyze.add_argument('--json-logs', action='store_true', help='Structured logs in stderr')
+    analyze.add_argument('--debug', action='store_true', help='Include tracebacks for failures')
+    return parser
+
+
+def _overrides(args: argparse.Namespace) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    mappings = {
+        'input': ('input', 'files'), 'input_format': ('input', 'format'),
+        'since': ('input', 'since'), 'until': ('input', 'until'),
+        'output': ('reporting', 'output_dir'), 'format': ('reporting', 'formats'),
+        'max_events': ('limits', 'max_events'), 'max_input_bytes': ('limits', 'max_input_bytes'),
+        'anonymize_ips': ('privacy', 'anonymize_ips'), 'include_query': ('privacy', 'include_query'),
+    }
+    for source, (section, key) in mappings.items():
+        value = getattr(args, source)
+        if value is not None:
+            values.setdefault(section, {})[key] = value
+    if args.strict:
+        values.setdefault('input', {})['invalid_policy'] = 'error'
+    for source, target in (('site', 'site'), ('log_level', 'log_level'), ('allowlist', 'allowlist_cidrs')):
+        value = getattr(args, source)
+        if value is not None:
+            values[target] = value
+    return values
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    # Preserve the README's historical `python -m ... --input ...` spelling.
+    if arguments and arguments[0].startswith('-') and arguments[0] not in ('--help', '-h', '--version'):
+        arguments.insert(0, 'analyze')
+    parser = _parser()
+    args = parser.parse_args(arguments)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(JsonLogFormatter() if getattr(args, 'json_logs', False) else logging.Formatter('%(levelname)s %(name)s: %(message)s'))
+    package_logger = logging.getLogger('sigma_probe')
+    previous_handlers, previous_level, previous_propagate = package_logger.handlers[:], package_logger.level, package_logger.propagate
+    package_logger.handlers = [handler]
+    package_logger.propagate = False
+    package_logger.setLevel(logging.INFO)
+    try:
+        with _interrupt_handlers():
+            if args.command == 'validate-config':
+                config = load_config(args.config)
+                print(json_text({'valid': True, 'schema_version': config.schema_version, 'site': config.site}), end='', flush=True)
+                return 0
+            config = load_config(args.config, overrides=_overrides(args))
+            package_logger.setLevel(logging.DEBUG if args.debug else config.log_level)
+            if config.privacy.include_query:
+                logger.warning('Query strings are enabled; review reports for secrets before sharing')
+            logger.info('Starting offline analysis')
+            result = AnalysisPipeline(config, hmac_key=os.environ.get('SIGMA_PROBE_HMAC_KEY')).run()
+            priorities = {'info': 0, 'low': 1, 'medium': 2, 'high': 3}
+            threshold = priorities.get(args.fail_on, 4)
+            failed = any(not actor.suppressed and priorities[actor.severity] >= threshold for actor in result.actors)
+            exit_code = 4 if result.ingestion.partial else (3 if failed else 0)
+            print(json_text({'summary': result.report['summary'], 'reports': result.report_paths, 'input_status': 'partial' if result.ingestion.partial else 'complete', 'exit_code': exit_code}), end='', flush=True)
+            return exit_code
+    except RunInterrupted as exc:
+        logger.warning('Interrupted; no partially written report bundle was published')
+        return 128 + exc.signum
+    except KeyboardInterrupt:
+        logger.warning('Interrupted')
+        return 130
+    except BrokenPipeError:
+        # Prevent another flush failure during interpreter shutdown.
+        if hasattr(sys.stdout, 'fileno'):
+            try:
+                with open(os.devnull, 'w') as sink:
+                    os.dup2(sink.fileno(), sys.stdout.fileno())
+            except (OSError, ValueError):
+                logger.debug('Could not detach closed stdout')
+        return 1
+    except (SigmaProbeError, OSError, EOFError) as exc:
+        message = str(exc) if isinstance(exc, SigmaProbeError) else 'File read/write failed; verify paths, permissions and compression'
+        logger.error('%s', message, exc_info=getattr(args, 'debug', False))
+        return 2
+    except Exception:
+        logger.error('Unexpected internal error; use --debug for a traceback', exc_info=getattr(args, 'debug', False))
+        return 1
+    finally:
+        handler.close()
+        package_logger.handlers = previous_handlers
+        package_logger.setLevel(previous_level)
+        package_logger.propagate = previous_propagate
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

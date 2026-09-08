@@ -1,206 +1,113 @@
-"""
-SIGMA-PROBE IoC Manager
-Dynamic Threat Intelligence Integration
+"""Local, bounded IoC snapshots. This module never opens a network socket."""
+from __future__ import annotations
 
-Принцип: Система должна уметь подгружать индикаторы компрометации (IoC) 
-из внешних источников для динамического обновления эвристик.
-"""
-
-import requests
-import yaml
-import logging
-from typing import Dict, List, Set, Optional
-from datetime import datetime, timedelta
+import hashlib
+from collections import Counter
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from ipaddress import ip_address, ip_network
 from pathlib import Path
-import re
+from typing import Any
 
-logger = logging.getLogger(__name__)
+from ..config import IoCConfig
+from ..models.core import LogEvent
+from ..validation import LimitExceeded, SigmaProbeError, text
+from ..pipeline.enrichment import normalized_path
 
-class IoCFeed:
-    """Represents a single IoC feed"""
-    
-    def __init__(self, name: str, url: str, feed_type: str, enabled: bool = True):
-        self.name = name
-        self.url = url
-        self.feed_type = feed_type
-        self.enabled = enabled
-        self.last_update = None
-        self.patterns: Set[str] = set()
-        self.error_count = 0
-        self.max_errors = 3
-    
-    def load_patterns(self) -> bool:
-        """Load patterns from the feed URL"""
-        if not self.enabled:
+
+@dataclass(slots=True)
+class _Feed:
+    name: str
+    type: str
+    sha256: str
+    entries: int
+    expires_at: str | None
+    networks: dict[tuple[int, int], set[int]] = field(default_factory=dict)
+    paths: set[str] = field(default_factory=set)
+    agents: tuple[str, ...] = ()
+
+    def matches(self, event: LogEvent) -> bool:
+        if self.type == 'ip':
+            address = ip_address(event.source_ip)
+            bits = address.max_prefixlen
+            value = int(address)
+            for (version, prefix), networks in self.networks.items():
+                if version == address.version and (value >> (bits - prefix)) in networks:
+                    return True
             return False
-            
-        try:
-            response = requests.get(self.url, timeout=10)
-            response.raise_for_status()
-            
-            # Parse patterns from response
-            patterns = set()
-            for line in response.text.split('\n'):
-                line = line.strip()
-                if line and not line.startswith('#'):
-                    patterns.add(line)
-            
-            self.patterns = patterns
-            self.last_update = datetime.now()
-            self.error_count = 0
-            
-            logger.info(f"IoC feed '{self.name}' loaded {len(patterns)} patterns")
-            return True
-            
-        except Exception as e:
-            self.error_count += 1
-            logger.error(f"Failed to load IoC feed '{self.name}': {e}")
-            
-            if self.error_count >= self.max_errors:
-                logger.warning(f"Disabling IoC feed '{self.name}' due to repeated failures")
-                self.enabled = False
-            
-            return False
-    
-    def match_pattern(self, text: str) -> Optional[str]:
-        """Check if text matches any pattern in this feed"""
-        if not self.enabled or not self.patterns:
-            return None
-            
-        for pattern in self.patterns:
-            if pattern in text:
-                return pattern
-        return None
+        if self.type == 'url_path':
+            return event.path in self.paths
+        agent = event.user_agent.casefold()
+        return any(pattern in agent for pattern in self.agents)
+
 
 class IoCManager:
-    """Manages dynamic IoC feeds for threat intelligence"""
-    
-    def __init__(self, config: Dict):
+    def __init__(self, config: IoCConfig, now: datetime | None = None) -> None:
         self.config = config
-        self.feeds: Dict[str, IoCFeed] = {}
-        self.update_interval = config.get('update_interval', 3600)
-        self.last_update = None
-        self.enabled = config.get('enabled', True)
-        
-        self._load_feeds()
-    
-    def _load_feeds(self):
-        """Load feed configurations from config"""
-        if not self.enabled:
+        self.feeds: list[_Feed] = []
+        self.matched_events = 0
+        self.feed_matches: Counter[str] = Counter()
+        if not config.enabled:
             return
-            
-        feeds_config = self.config.get('feeds', [])
-        
-        for feed_config in feeds_config:
-            feed = IoCFeed(
-                name=feed_config['name'],
-                url=feed_config['url'],
-                feed_type=feed_config['type'],
-                enabled=feed_config.get('enabled', True)
-            )
-            self.feeds[feed.name] = feed
-    
-    def update_feeds(self) -> bool:
-        """Update all enabled feeds"""
-        if not self.enabled:
-            return False
-            
-        current_time = datetime.now()
-        
-        # Check if update is needed
-        if (self.last_update and 
-            current_time - self.last_update < timedelta(seconds=self.update_interval)):
-            return True
-        
-        logger.info("Updating IoC feeds...")
-        success_count = 0
-        
-        for feed in self.feeds.values():
-            if feed.load_patterns():
-                success_count += 1
-        
-        self.last_update = current_time
-        logger.info(f"IoC feeds update complete: {success_count}/{len(self.feeds)} successful")
-        
-        return success_count > 0
-    
-    def check_user_agent(self, user_agent: str) -> Optional[Dict]:
-        """Check user agent against malicious patterns"""
-        for feed in self.feeds.values():
-            if feed.feed_type == 'user_agent':
-                pattern = feed.match_pattern(user_agent)
-                if pattern:
-                    return {
-                        'feed': feed.name,
-                        'pattern': pattern,
-                        'confidence': 0.9,
-                        'description': f'Malicious user agent pattern detected: {pattern}'
-                    }
-        return None
-    
-    def check_url_path(self, url_path: str) -> Optional[Dict]:
-        """Check URL path against suspicious patterns"""
-        for feed in self.feeds.values():
-            if feed.feed_type == 'url_path':
-                pattern = feed.match_pattern(url_path)
-                if pattern:
-                    return {
-                        'feed': feed.name,
-                        'pattern': pattern,
-                        'confidence': 0.8,
-                        'description': f'Suspicious URL path detected: {pattern}'
-                    }
-        return None
-    
-    def check_ip_address(self, ip: str) -> Optional[Dict]:
-        """Check IP address against malicious IP lists"""
-        for feed in self.feeds.values():
-            if feed.feed_type == 'ip_address':
-                pattern = feed.match_pattern(ip)
-                if pattern:
-                    return {
-                        'feed': feed.name,
-                        'pattern': pattern,
-                        'confidence': 0.95,
-                        'description': f'Malicious IP address detected: {pattern}'
-                    }
-        return None
-    
-    def check_url_pattern(self, url: str) -> Optional[Dict]:
-        """Check URL against attack patterns (LFI, SQLi, XSS, etc.)"""
-        for feed in self.feeds.values():
-            if feed.feed_type == 'url_pattern':
-                pattern = feed.match_pattern(url)
-                if pattern:
-                    attack_type = self._determine_attack_type(feed.name)
-                    return {
-                        'feed': feed.name,
-                        'pattern': pattern,
-                        'confidence': 0.85,
-                        'description': f'{attack_type} attack pattern detected: {pattern}'
-                    }
-        return None
-    
-    def _determine_attack_type(self, feed_name: str) -> str:
-        """Determine attack type from feed name"""
-        if 'lfi' in feed_name.lower():
-            return 'LFI'
-        elif 'sqli' in feed_name.lower():
-            return 'SQLi'
-        elif 'xss' in feed_name.lower():
-            return 'XSS'
-        else:
-            return 'Attack'
-    
-    def get_stats(self) -> Dict:
-        """Get IoC manager statistics"""
-        total_patterns = sum(len(feed.patterns) for feed in self.feeds.values())
-        enabled_feeds = sum(1 for feed in self.feeds.values() if feed.enabled)
-        
+        current = now or datetime.now(timezone.utc)
+        for item in config.files:
+            if item.expires_at is not None and current >= item.expires_at:
+                raise SigmaProbeError(f'IoC feed {item.name} has expired; provide a reviewed fresh snapshot')
+            path = Path(item.path)
+            if not path.is_file():
+                raise SigmaProbeError(f'IoC feed {item.name} must be a regular file')
+            with path.open('rb') as handle:
+                raw = handle.read(config.max_file_bytes + 1)
+            if len(raw) > config.max_file_bytes:
+                raise LimitExceeded(f'IoC feed {item.name}: max_file_bytes exceeded')
+            try:
+                lines = raw.decode('utf-8-sig').splitlines()
+            except UnicodeError as exc:
+                raise SigmaProbeError(f'IoC feed {item.name} is not valid UTF-8') from exc
+            values = {line.strip() for line in lines if line.strip() and not line.lstrip().startswith('#')}
+            if not values:
+                raise SigmaProbeError(f'IoC feed {item.name} contains no indicators')
+            if len(values) > config.max_entries:
+                raise LimitExceeded(f'IoC feed {item.name}: max_entries exceeded')
+            feed = _Feed(item.name, item.type, hashlib.sha256(raw).hexdigest(), len(values), item.expires_at.isoformat() if item.expires_at else None)
+            for value in sorted(values):
+                text(value, f'IoC {item.name} indicator', 2048)
+                if item.type == 'ip':
+                    try:
+                        if '%' in value:
+                            raise ValueError('Scope is not supported')
+                        network = ip_network(value, strict=False)
+                    except ValueError as exc:
+                        raise SigmaProbeError(f'IoC feed {item.name}: invalid IP/CIDR') from exc
+                    key = (network.version, network.prefixlen)
+                    network_value = int(network.network_address) >> (network.max_prefixlen - network.prefixlen)
+                    feed.networks.setdefault(key, set()).add(network_value)
+                elif item.type == 'url_path':
+                    if not value.startswith('/') or '?' in value or '#' in value:
+                        raise SigmaProbeError(f'IoC feed {item.name}: expected an absolute path without query/fragment')
+                    feed.paths.add(normalized_path(value))
+            if item.type == 'user_agent':
+                if len(values) > 128 or any(not 6 <= len(value) <= 256 for value in values):
+                    raise SigmaProbeError(f'IoC feed {item.name}: maximum 128 literal UA patterns, each 6..256 characters')
+                feed.agents = tuple(sorted(value.casefold() for value in values))
+            self.feeds.append(feed)
+
+    def enrich_event(self, event: LogEvent) -> LogEvent:
+        matches = [feed.name for feed in self.feeds if feed.matches(event)]
+        if matches:
+            event.heuristic_flags.add('IOC_MATCH')
+            event.ioc_feeds.update(matches)
+            self.matched_events += 1
+            self.feed_matches.update(matches)
+        return event
+
+    def get_stats(self) -> dict[str, Any]:
         return {
-            'total_feeds': len(self.feeds),
-            'enabled_feeds': enabled_feeds,
-            'total_patterns': total_patterns,
-            'last_update': self.last_update.isoformat() if self.last_update else None,
-            'enabled': self.enabled
-        } 
+            'enabled': self.config.enabled, 'matched_events': self.matched_events,
+            'feeds': [
+                {'name': feed.name, 'type': feed.type, 'entries': feed.entries,
+                 'sha256': feed.sha256, 'expires_at': feed.expires_at,
+                 'matched_events': self.feed_matches[feed.name]}
+                for feed in self.feeds
+            ],
+        }

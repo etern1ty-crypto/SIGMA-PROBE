@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-09-08T00:54:28.206046+00:00",
+  "os": "Linux",
+  "python": "3.13.14",
+  "venv_system_site_packages": false,
+  "installed_packages": [
+    {
+      "name": "pip",
+      "version": "24.2"
+    },
+    {
+      "name": "sigma-probe",
+      "version": "3.0.0rc1"
+    }
+  ],
+  "source_install_command": "python -m pip install --no-index .",
+  "source_install_verified": true,
+  "final_wheel_install_verified": true,
+  "pip_check": "No broken requirements found.",
+  "outside_source_isolated_version": "sigma-probe 3.0.0rc1",
+  "quickstart_summary": {
+    "accepted_events": 56,
+    "actors": 7,
+    "correlation_groups": 1,
+    "filtered_events": 0,
+    "high": 2,
+    "info": 4,
+    "invalid_lines": 0,
+    "low": 0,
+    "medium": 1,
+    "suppressed": 0
+  },
+  "docker_available": false,
+  "hosted_ci_executed": false,
+  "ruff_mypy_advisory_scan_executed": false
+}

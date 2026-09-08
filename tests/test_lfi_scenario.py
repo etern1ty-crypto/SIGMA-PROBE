@@ -1,221 +1,81 @@
-"""
-SIGMA-PROBE Behavioral Test: LFI Attack Scenario.
+"""Executable end-to-end regressions; no skipped scenarios or missing fixtures."""
+import io
+import json
+import os
+import subprocess
+import sys
+import unittest
+from dataclasses import replace
+from unittest.mock import patch
 
-BDD-style end-to-end scenario that exercises the whole pipeline against a
-recorded LFI attack log. The fixture log file at
-``tests/scenarios/lfi_attack_scenario.log`` does not currently exist in the
-repository, and ``HeliosPipeline.run()`` does not yet accept a per-call log
-path argument — both are intentional gaps in the v2.0 refactor.
-
-The whole class is skipped until those pieces land. Removing the skip
-without restoring the scenario log and the pipeline API will produce loud
-errors, which is the desired outcome — it forces the gap to be addressed
-rather than silently dropped.
-"""
-
-from pathlib import Path
-
-import pytest
-
-from sigma_probe.main import HeliosPipeline  # noqa: F401  (import smoke check)
-from sigma_probe.models.core import ActorProfile, LogEvent  # noqa: F401
+from sigma_probe.config import LimitsConfig, Settings
+from sigma_probe.main import AnalysisPipeline
+from sigma_probe.validation import LimitExceeded
+from tests.helpers import ROOT
 
 
-@pytest.mark.skip(
-    reason=(
-        "BDD scenario fixture log (tests/scenarios/lfi_attack_scenario.log) "
-        "is not present and HeliosPipeline.run() does not yet accept a per-call "
-        "log path argument. Restore both to re-enable this suite."
-    )
-)
-class TestLFIAttackScenario:
-    """Behavioral test for LFI attack detection scenario"""
-    
-    @pytest.fixture
-    def pipeline(self):
-        """Create pipeline with test configuration"""
-        # Create temporary config file
-        config = {
-            'pipeline': {
-                'stages': ['ingestion', 'enrichment', 'profiling', 'detection', 'metadetection', 'scoring', 'reporting']
-            },
-            'ioc_feeds': {
-                'enabled': True,
-                'update_interval': 3600,
-                'feeds': [
-                    {
-                        'name': 'lfi_patterns',
-                        'url': 'https://raw.githubusercontent.com/example/threat-intel/main/lfi_patterns.txt',
-                        'type': 'url_pattern',
-                        'enabled': True
-                    }
-                ]
-            },
-            'detectors': {
-                'fft': {
-                    'min_peaks': 3,
-                    'peak_threshold': 0.1,
-                    'autocorr_threshold': 0.3,
-                    'window_size': 600,
-                    'change_threshold': 5.0
-                }
-            },
-            'scoring': {
-                'profiles': {
-                    'lfi_attacker': {
-                        'base_score': 8.0,
-                        'multipliers': {
-                            'LFI_ATTACK': 1.5,
-                            'BOT_ACTIVITY': 1.2,
-                            'CONFIRMED_SOPHISTICATED': 1.3
-                        }
-                    }
-                }
-            }
-        }
-        
-        # Write config to temporary file
-        import tempfile
-        import yaml
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            yaml.dump(config, f)
-            config_path = f.name
-        
-        try:
-            return HeliosPipeline(config_path)
-        finally:
-            # Clean up temp file
-            import os
-            os.unlink(config_path)
-    
-    @pytest.fixture
-    def scenario_log_path(self):
-        """Path to the LFI attack scenario log"""
-        return Path(__file__).parent / 'scenarios' / 'lfi_attack_scenario.log'
-    
-    def test_lfi_attack_detection(self, pipeline, scenario_log_path):
-        """Test that LFI attack is properly detected and scored"""
-        # Run pipeline on scenario
-        results = pipeline.run(str(scenario_log_path))
-        
-        # Verify we have actors
-        assert 'actors' in results, "Pipeline should return actors"
-        assert len(results['actors']) > 0, "Should detect at least one actor"
-        
-        # Get the main actor (192.168.1.100)
-        main_actor = None
-        for actor in results['actors']:
-            if actor.ip == '192.168.1.100':
-                main_actor = actor
-                break
-        
-        assert main_actor is not None, "Should detect the attacking IP"
-        
-        # Verify LFI attack detection
-        assert 'LFI_ATTACK' in main_actor.tags, "Should detect LFI attack patterns"
-        
-        # Verify bot activity detection (adaptive timing)
-        assert 'BOT_ACTIVITY' in main_actor.tags, "Should detect automated bot activity"
-        
-        # Verify high threat score
-        assert main_actor.threat_score > 8.0, f"LFI attacker should have high threat score, got {main_actor.threat_score}"
-        
-        # Verify evidence trail
-        assert len(main_actor.evidence_trail) > 0, "Should have evidence trail"
-        
-        # Check for specific evidence types
-        evidence_sources = [e.get('source', '') for e in main_actor.evidence_trail]
-        assert 'HeuristicEnricher' in evidence_sources, "Should have heuristic evidence"
-        assert 'FFTDetector' in evidence_sources, "Should have temporal analysis evidence"
-        
-        # Verify meta-detection results
-        if 'MetaDetector' in evidence_sources:
-            # Check for confirmation or contradiction tags
-            meta_tags = {'CONFIRMED_SOPHISTICATED', 'CONFIRMED_BOTNET', 'ISOLATED_INDICATOR', 'FALSE_POSITIVE'}
-            detected_meta_tags = meta_tags.intersection(main_actor.tags)
-            assert len(detected_meta_tags) > 0, "MetaDetector should add cross-validation tags"
-    
-    def test_adaptive_timing_detection(self, pipeline, scenario_log_path):
-        """Test that adaptive timing patterns are detected"""
-        results = pipeline.run(str(scenario_log_path))
-        
-        main_actor = None
-        for actor in results['actors']:
-            if actor.ip == '192.168.1.100':
-                main_actor = actor
-                break
-        
-        assert main_actor is not None
-        
-        # Check for FFT evidence indicating adaptive timing
-        fft_evidence = [e for e in main_actor.evidence_trail if 'FFTDetector' in e.get('source', '')]
-        assert len(fft_evidence) > 0, "Should have FFT analysis evidence"
-        
-        # Check for windowed change detection
-        window_evidence = [e for e in fft_evidence if 'frequency change' in e.get('description', '').lower()]
-        if window_evidence:
-            # Adaptive timing detected
-            assert 'BOT_ACTIVITY' in main_actor.tags, "Adaptive timing should trigger bot detection"
-    
-    def test_ioc_integration(self, pipeline, scenario_log_path):
-        """Test that IoC feeds are integrated into detection"""
-        results = pipeline.run(str(scenario_log_path))
-        
-        main_actor = None
-        for actor in results['actors']:
-            if actor.ip == '192.168.1.100':
-                main_actor = actor
-                break
-        
-        assert main_actor is not None
-        
-        # Check for IoC-based evidence
-        ioc_evidence = [e for e in main_actor.evidence_trail 
-                       if 'IoC' in e.get('source', '') or 'feed' in e.get('description', '').lower()]
-        
-        # Note: This test may fail if IoC feeds are not available during testing
-        # In a real environment, this would verify external threat intelligence integration
-        if ioc_evidence:
-            assert 'LFI_ATTACK' in main_actor.tags, "IoC evidence should support LFI detection"
-    
-    def test_evidence_confidence_scoring(self, pipeline, scenario_log_path):
-        """Test that evidence confidence affects threat scoring"""
-        results = pipeline.run(str(scenario_log_path))
-        
-        main_actor = None
-        for actor in results['actors']:
-            if actor.ip == '192.168.1.100':
-                main_actor = actor
-                break
-        
-        assert main_actor is not None
-        
-        # Check that high-confidence evidence exists
-        high_confidence_evidence = [e for e in main_actor.evidence_trail 
-                                  if e.get('confidence', 0) > 0.8]
-        assert len(high_confidence_evidence) > 0, "Should have high-confidence evidence"
-        
-        # Verify threat score reflects evidence confidence
-        assert main_actor.threat_score > 7.0, "High confidence evidence should result in high threat score"
-    
-    def test_campaign_clustering(self, pipeline, scenario_log_path):
-        """Test that actors are properly clustered into campaigns"""
-        results = pipeline.run(str(scenario_log_path))
-        
-        # Check for campaign formation
-        assert 'campaigns' in results, "Should identify threat campaigns"
-        
-        if results['campaigns']:
-            # Verify campaign has the expected actor
-            campaign_actors = []
-            for campaign in results['campaigns']:
-                campaign_actors.extend([actor.ip for actor in campaign.actors])
-            
-            assert '192.168.1.100' in campaign_actors, "LFI attacker should be in a campaign"
-            
-            # Verify campaign scoring
-            for campaign in results['campaigns']:
-                if any(actor.ip == '192.168.1.100' for actor in campaign.actors):
-                    assert campaign.threat_score > 7.0, "LFI campaign should have high threat score"
-                    assert len(campaign.evidence_trail) > 0, "Campaign should have evidence trail" 
+class EndToEndTests(unittest.TestCase):
+    def run_fixture(self, config=None):
+        return AnalysisPipeline(config or Settings()).run(str(ROOT / 'tests/fixtures/lfi_scenario.log'), write_reports=False)
+
+    def test_full_lfi_scenario_and_campaign(self):
+        result = self.run_fixture()
+        self.assertEqual(result.ingestion.total('accepted'), 56)
+        self.assertEqual(len(result.actors), 7)
+        attackers = [a for a in result.actors if a.ip_address in ('203.0.113.10', '203.0.113.11')]
+        self.assertEqual(len(attackers), 2)
+        for a in attackers:
+            self.assertTrue({'LFI_RFI', 'AUTOMATED_SCAN', 'CORRELATED_ACTIVITY', 'MULTIPLE_SIGNALS'} <= a.tags)
+            self.assertEqual(a.severity, 'high')
+            self.assertTrue(any(e.references for e in a.evidence_trail))
+            self.assertIn('T1190', {t['id'] for t in a.mitre_techniques})
+        self.assertEqual(len(result.campaigns), 1)
+        self.assertEqual(result.campaigns[0].threat_score, sum(a.threat_score for a in attackers) / 2)
+        self.assertTrue(result.recommendations)
+
+    def test_benign_health_php_and_redirect_stay_zero(self):
+        result = self.run_fixture()
+        for ip in ('198.51.100.20', '198.51.100.21', '2001:db8::21'):
+            a = next(a for a in result.actors if a.ip_address == ip)
+            self.assertEqual(a.threat_score, 0)
+            self.assertEqual(a.tags, set())
+
+    def test_reuse_has_no_stale_context(self):
+        pipeline = AnalysisPipeline(Settings())
+        pipeline.run(str(ROOT / 'examples/access.log'), write_reports=False)
+        empty = pipeline.run('-', write_reports=False, stdin=io.BytesIO(b''))
+        self.assertEqual(empty.report['summary']['actors'], 0)
+        self.assertEqual(empty.campaigns, [])
+        self.assertEqual(empty.ingestion.total('accepted'), 0)
+
+    def test_no_network_access_in_full_run(self):
+        with patch('socket.socket', side_effect=AssertionError('Network access is forbidden')):
+            self.assertEqual(self.run_fixture().ingestion.total('accepted'), 56)
+
+    def test_actor_budget_is_enforced(self):
+        with self.assertRaises(LimitExceeded):
+            self.run_fixture(replace(Settings(), limits=LimitsConfig(max_actors=1)))
+
+    def test_allowlist_is_visible_and_excluded_from_groups(self):
+        result = self.run_fixture(Settings(allowlist_cidrs=('203.0.113.0/24',)))
+        self.assertEqual(result.report['summary']['suppressed'], 2)
+        self.assertEqual(result.campaigns, [])
+        for a in result.actors:
+            if a.suppressed:
+                self.assertEqual(a.threat_score, 0)
+                self.assertTrue(a.evidence_trail)
+
+    def test_jsonl_and_combined_equivalence(self):
+        a = self.run_fixture()
+        b = AnalysisPipeline(Settings()).run(str(ROOT / 'examples/access.jsonl'), write_reports=False)
+        self.assertEqual([(x.ip_address, x.threat_score, x.tags) for x in a.actors], [(x.ip_address, x.threat_score, x.tags) for x in b.actors])
+
+    def test_hash_seed_independence(self):
+        command = [sys.executable, '-c', 'import json; from sigma_probe.main import AnalysisPipeline; from sigma_probe.config import Settings; r=AnalysisPipeline(Settings()).run("examples/access.log",write_reports=False).report; print(json.dumps({k:r[k] for k in ("actors","campaigns","recommendations","detectors")},sort_keys=True))']
+        outputs = []
+        for seed in ('1', '987'):
+            env = dict(os.environ, PYTHONPATH=str(ROOT / 'src'), PYTHONHASHSEED=seed)
+            result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            outputs.append(json.loads(result.stdout))
+        self.assertEqual(outputs[0], outputs[1])

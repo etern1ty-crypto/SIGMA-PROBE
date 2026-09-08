@@ -1,7 +1,4 @@
-"""
-Модели данных SIGMA-PROBE
-"""
+"""Validated domain objects."""
+from .core import ActorProfile, AnalysisResult, Evidence, LogEvent, ThreatCampaign
 
-from .core import LogEvent, ActorProfile, ThreatCampaign, PipelineContext
-
-__all__ = ['LogEvent', 'ActorProfile', 'ThreatCampaign', 'PipelineContext'] 
+__all__ = ["ActorProfile", "AnalysisResult", "Evidence", "LogEvent", "ThreatCampaign"]

@@ -1,47 +1,19 @@
-# Build stage
-FROM python:3.9-slim as builder
+ARG PYTHON_IMAGE=python:3.13-slim
+FROM ${PYTHON_IMAGE} AS builder
+WORKDIR /src
+COPY . .
+RUN python scripts/build_dist.py --output /wheels
 
-WORKDIR /app
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install poetry
-RUN pip install poetry
-
-# Copy configuration
-COPY pyproject.toml README.md ./
-
-# Export requirements and install
-# We use this approach to avoid installing poetry in the final image
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-dev --no-interaction --no-ansi
-
-# Runtime stage
-FROM python:3.9-slim
-
-WORKDIR /app
-
-# Create non-root user
-RUN groupadd -r sigma && useradd -r -g sigma sigma
-
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-
-# Copy application code
-COPY src ./src
-COPY config.yaml .
-
-# Set ownership
-RUN chown -R sigma:sigma /app
-
-USER sigma
-
-# Environment variables
-ENV PYTHONUNBUFFERED=1
-
-# Entry point
-CMD ["python", "-m", "sigma_probe.main"]
+FROM ${PYTHON_IMAGE}
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 SIGMA_PROBE_OUTPUT_DIR=/reports
+RUN groupadd --gid 10001 sigma \
+    && useradd --uid 10001 --gid sigma --no-create-home sigma \
+    && mkdir -p /reports /workspace \
+    && chown sigma:sigma /reports /workspace
+COPY --from=builder /wheels/*.whl /tmp/
+RUN python -m pip install --no-index --no-deps /tmp/sigma_probe-*.whl \
+    && rm /tmp/sigma_probe-*.whl
+WORKDIR /workspace
+USER 10001:10001
+ENTRYPOINT ["sigma-probe"]
+CMD ["--help"]

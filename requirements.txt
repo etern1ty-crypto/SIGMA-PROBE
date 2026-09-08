@@ -1,0 +1,2 @@
+# Runtime dependencies: none. Python >= 3.11 standard library only.
+# Intentionally empty; no external resolution or lockfile is necessary.

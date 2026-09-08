@@ -1,0 +1,149 @@
+test_bad_input_and_config_exit_two_without_traceback (tests.test_cli.CLITests.test_bad_input_and_config_exit_two_without_traceback) ... ok
+test_config_validation_has_no_filesystem_side_effect (tests.test_cli.CLITests.test_config_validation_has_no_filesystem_side_effect) ... ok
+test_fail_on_high_exit_three_after_reports (tests.test_cli.CLITests.test_fail_on_high_exit_three_after_reports) ... ok
+test_import_has_no_logfile_or_other_writes (tests.test_cli.CLITests.test_import_has_no_logfile_or_other_writes) ... ok
+test_input_partial_exit_four_precedes_risk (tests.test_cli.CLITests.test_input_partial_exit_four_precedes_risk) ... ok
+test_invalid_gzip_fails_without_partial_bundle (tests.test_cli.CLITests.test_invalid_gzip_fails_without_partial_bundle) ... ok
+test_legacy_flag_spelling_works (tests.test_cli.CLITests.test_legacy_flag_spelling_works) ... ok
+test_real_cli_writes_reports_and_clean_stdout (tests.test_cli.CLITests.test_real_cli_writes_reports_and_clean_stdout) ... ok
+test_sigint_while_stdin_blocked (tests.test_cli.CLITests.test_sigint_while_stdin_blocked) ... ok
+test_sigterm_while_stdin_blocked (tests.test_cli.CLITests.test_sigterm_while_stdin_blocked) ... ok
+test_stdin_and_json_logging (tests.test_cli.CLITests.test_stdin_and_json_logging) ... ok
+test_unknown_cli_parameter_rejected (tests.test_cli.CLITests.test_unknown_cli_parameter_rejected) ... ok
+test_version_and_help (tests.test_cli.CLITests.test_version_and_help) ... ok
+test_allowlist_and_proxy_validation (tests.test_config.ConfigTests.test_allowlist_and_proxy_validation) ... ok
+test_config_duplicate_keys_invalid_syntax_and_oversize (tests.test_config.ConfigTests.test_config_duplicate_keys_invalid_syntax_and_oversize) ... ok
+test_duplicate_input_and_output_formats (tests.test_config.ConfigTests.test_duplicate_input_and_output_formats) ... ok
+test_environment_config_path (tests.test_config.ConfigTests.test_environment_config_path) ... ok
+test_example_valid (tests.test_config.ConfigTests.test_example_valid) ... ok
+test_invalid_types_and_ranges (tests.test_config.ConfigTests.test_invalid_types_and_ranges) ... ok
+test_ioc_requires_files_and_rejects_urls (tests.test_config.ConfigTests.test_ioc_requires_files_and_rejects_urls) ... ok
+test_mutable_weight_defaults_are_independent (tests.test_config.ConfigTests.test_mutable_weight_defaults_are_independent) ... ok
+test_nonfinite_toml_rejected (tests.test_config.ConfigTests.test_nonfinite_toml_rejected) ... ok
+test_partial_weights_preserve_defaults (tests.test_config.ConfigTests.test_partial_weights_preserve_defaults) ... ok
+test_precedence (tests.test_config.ConfigTests.test_precedence) ... ok
+test_time_window_validation (tests.test_config.ConfigTests.test_time_window_validation) ... ok
+test_unknown_top_level_and_nested_settings (tests.test_config.ConfigTests.test_unknown_top_level_and_nested_settings) ... ok
+test_disabled_and_pair_limits (tests.test_detectors.CorrelationTests.test_disabled_and_pair_limits) ... ok
+test_group_size_limit (tests.test_detectors.CorrelationTests.test_group_size_limit) ... ok
+test_no_transitive_campaign_chaining (tests.test_detectors.CorrelationTests.test_no_transitive_campaign_chaining) ... ok
+test_normal_visitors_and_allowlist_not_correlated (tests.test_detectors.CorrelationTests.test_normal_visitors_and_allowlist_not_correlated) ... ok
+test_order_invariance (tests.test_detectors.CorrelationTests.test_order_invariance) ... ok
+test_shared_suspicious_paths_form_group (tests.test_detectors.CorrelationTests.test_shared_suspicious_paths_form_group) ... ok
+test_time_separation_prevents_group (tests.test_detectors.CorrelationTests.test_time_separation_prevents_group) ... ok
+test_unrelated_equal_shape_vectors_do_not_form_group (tests.test_detectors.CorrelationTests.test_unrelated_equal_shape_vectors_do_not_form_group) ... ok
+test_auth_burst_is_windowed_and_path_specific (tests.test_detectors.DetectorTests.test_auth_burst_is_windowed_and_path_specific) ... ok
+test_enumeration_requires_distinct_error_paths (tests.test_detectors.DetectorTests.test_enumeration_requires_distinct_error_paths) ... ok
+test_error_burst_threshold (tests.test_detectors.DetectorTests.test_error_burst_threshold) ... ok
+test_health_check_cadence_does_not_become_attack (tests.test_detectors.DetectorTests.test_health_check_cadence_does_not_become_attack) ... ok
+test_identical_timestamps_do_not_prove_rhythm (tests.test_detectors.DetectorTests.test_identical_timestamps_do_not_prove_rhythm) ... ok
+test_meta_does_not_invent_botnet_or_inflate_scores (tests.test_detectors.DetectorTests.test_meta_does_not_invent_botnet_or_inflate_scores) ... ok
+test_periodic_payload_attempts_have_evidence (tests.test_detectors.DetectorTests.test_periodic_payload_attempts_have_evidence) ... ok
+test_temporal_threshold_used (tests.test_detectors.DetectorTests.test_temporal_threshold_used) ... ok
+test_broad_actor_window_is_not_sufficient_correlation (tests.test_edge_cases.EdgeCaseTests.test_broad_actor_window_is_not_sufficient_correlation) ... ok
+test_filtered_input_not_false_partial (tests.test_edge_cases.EdgeCaseTests.test_filtered_input_not_false_partial) ... ok
+test_input_iterator_closed_on_profiling_abort (tests.test_edge_cases.EdgeCaseTests.test_input_iterator_closed_on_profiling_abort) ... ok
+test_malformed_absolute_url_is_validation_error (tests.test_edge_cases.EdgeCaseTests.test_malformed_absolute_url_is_validation_error) ... ok
+test_multi_host_json_refused_instead_of_cross_site_grouping (tests.test_edge_cases.EdgeCaseTests.test_multi_host_json_refused_instead_of_cross_site_grouping) ... ok
+test_report_invalid_timestamp_does_not_leak_staging_directory (tests.test_edge_cases.EdgeCaseTests.test_report_invalid_timestamp_does_not_leak_staging_directory) ... ok
+test_seeded_malformed_records_fail_as_validation_not_crashes (tests.test_edge_cases.EdgeCaseTests.test_seeded_malformed_records_fail_as_validation_not_crashes) ... ok
+test_url_bidi_controls_are_printable_escapes (tests.test_edge_cases.EdgeCaseTests.test_url_bidi_controls_are_printable_escapes) ... ok
+test_common_ipv6_dash_bytes_and_timezone (tests.test_ingestion.IngestionTests.test_common_ipv6_dash_bytes_and_timezone) ... ok
+test_dash_request_is_invalid_not_fake_event (tests.test_ingestion.IngestionTests.test_dash_request_is_invalid_not_fake_event) ... ok
+test_duplicate_file_identity (tests.test_ingestion.IngestionTests.test_duplicate_file_identity) ... ok
+test_empty_blank_input_is_explicit_and_valid (tests.test_ingestion.IngestionTests.test_empty_blank_input_is_explicit_and_valid) ... ok
+test_escaped_quotes_and_hex (tests.test_ingestion.IngestionTests.test_escaped_quotes_and_hex) ... ok
+test_gzip_and_decompressed_hash (tests.test_ingestion.IngestionTests.test_gzip_and_decompressed_hash) ... ok
+test_input_limits (tests.test_ingestion.IngestionTests.test_input_limits) ... ok
+test_invalid_utf8_counted_without_replacement (tests.test_ingestion.IngestionTests.test_invalid_utf8_counted_without_replacement) ... ok
+test_json_canonical_and_nginx_aliases (tests.test_ingestion.IngestionTests.test_json_canonical_and_nginx_aliases) ... ok
+test_json_rejects_alias_conflicts_and_duplicate_keys (tests.test_ingestion.IngestionTests.test_json_rejects_alias_conflicts_and_duplicate_keys) ... ok
+test_json_rejects_nonfinite_values_and_booleans (tests.test_ingestion.IngestionTests.test_json_rejects_nonfinite_values_and_booleans) ... ok
+test_missing_file_and_directory_rejected (tests.test_ingestion.IngestionTests.test_missing_file_and_directory_rejected) ... ok
+test_nginx_combined (tests.test_ingestion.IngestionTests.test_nginx_combined) ... ok
+test_partial_input_counted_and_safe_error_messages (tests.test_ingestion.IngestionTests.test_partial_input_counted_and_safe_error_messages) ... ok
+test_reuse_resets_stats_and_stdin_is_not_closed (tests.test_ingestion.IngestionTests.test_reuse_resets_stats_and_stdin_is_not_closed) ... ok
+test_strict_ratio_and_all_invalid_failure (tests.test_ingestion.IngestionTests.test_strict_ratio_and_all_invalid_failure) ... ok
+test_time_filter_lower_inclusive_upper_exclusive (tests.test_ingestion.IngestionTests.test_time_filter_lower_inclusive_upper_exclusive) ... ok
+test_trusted_proxy_right_to_left (tests.test_ingestion.IngestionTests.test_trusted_proxy_right_to_left) ... ok
+test_untrusted_forwarded_header_ignored (tests.test_ingestion.IngestionTests.test_untrusted_forwarded_header_ignored) ... ok
+test_disabled_ioc_does_not_read_files (tests.test_ioc.IoCTests.test_disabled_ioc_does_not_read_files) ... ok
+test_exact_ip_not_substring_and_cidr_ipv6 (tests.test_ioc.IoCTests.test_exact_ip_not_substring_and_cidr_ipv6) ... ok
+test_expired_feed_rejected_before_read (tests.test_ioc.IoCTests.test_expired_feed_rejected_before_read) ... ok
+test_invalid_empty_and_oversized_feeds (tests.test_ioc.IoCTests.test_invalid_empty_and_oversized_feeds) ... ok
+test_local_ioc_is_applied_end_to_end (tests.test_ioc.IoCTests.test_local_ioc_is_applied_end_to_end) ... ok
+test_path_is_exact_and_ua_is_literal (tests.test_ioc.IoCTests.test_path_is_exact_and_ua_is_literal) ... ok
+test_actor_budget_is_enforced (tests.test_lfi_scenario.EndToEndTests.test_actor_budget_is_enforced) ... ok
+test_allowlist_is_visible_and_excluded_from_groups (tests.test_lfi_scenario.EndToEndTests.test_allowlist_is_visible_and_excluded_from_groups) ... ok
+test_benign_health_php_and_redirect_stay_zero (tests.test_lfi_scenario.EndToEndTests.test_benign_health_php_and_redirect_stay_zero) ... ok
+test_full_lfi_scenario_and_campaign (tests.test_lfi_scenario.EndToEndTests.test_full_lfi_scenario_and_campaign) ... ok
+test_hash_seed_independence (tests.test_lfi_scenario.EndToEndTests.test_hash_seed_independence) ... ok
+test_jsonl_and_combined_equivalence (tests.test_lfi_scenario.EndToEndTests.test_jsonl_and_combined_equivalence) ... ok
+test_no_network_access_in_full_run (tests.test_lfi_scenario.EndToEndTests.test_no_network_access_in_full_run) ... ok
+test_reuse_has_no_stale_context (tests.test_lfi_scenario.EndToEndTests.test_reuse_has_no_stale_context) ... ok
+test_campaign_average_uses_objects (tests.test_models.ModelTests.test_campaign_average_uses_objects) ... ok
+test_different_paths_have_different_coordinates (tests.test_models.ModelTests.test_different_paths_have_different_coordinates) ... ok
+test_enrichment_required_and_ip_isolated (tests.test_models.ModelTests.test_enrichment_required_and_ip_isolated) ... ok
+test_evidence_idempotent (tests.test_models.ModelTests.test_evidence_idempotent) ... ok
+test_incremental_metrics (tests.test_models.ModelTests.test_incremental_metrics) ... ok
+test_ip_and_http_validation (tests.test_models.ModelTests.test_ip_and_http_validation) ... ok
+test_ipv6_normalization (tests.test_models.ModelTests.test_ipv6_normalization) ... ok
+test_timezone_required (tests.test_models.ModelTests.test_timezone_required) ... ok
+test_absolute_url_and_double_slash_paths (tests.test_models.SignatureTests.test_absolute_url_and_double_slash_paths) ... ok
+test_benign_urls_are_not_inherently_malicious (tests.test_models.SignatureTests.test_benign_urls_are_not_inherently_malicious) ... ok
+test_encoded_and_double_encoded_traversal (tests.test_models.SignatureTests.test_encoded_and_double_encoded_traversal) ... ok
+test_normal_googlebot_is_not_an_attack (tests.test_models.SignatureTests.test_normal_googlebot_is_not_an_attack) ... ok
+test_query_plus_not_path_plus (tests.test_models.SignatureTests.test_query_plus_not_path_plus) ... ok
+test_scanner_agent_is_specific (tests.test_models.SignatureTests.test_scanner_agent_is_specific) ... ok
+test_sensitive_paths_with_boundaries (tests.test_models.SignatureTests.test_sensitive_paths_with_boundaries) ... ok
+test_signature_enrichment_idempotent (tests.test_models.SignatureTests.test_signature_enrichment_idempotent) ... ok
+test_sql_xss_and_command (tests.test_models.SignatureTests.test_sql_xss_and_command) ... ok
+test_sdist_has_safe_paths_and_sources (tests.test_packaging.PackagingTests.test_sdist_has_safe_paths_and_sources) ... ok
+test_wheel_is_reproducible (tests.test_packaging.PackagingTests.test_wheel_is_reproducible) ... ok
+test_wheel_metadata_assets_and_record_hashes (tests.test_packaging.PackagingTests.test_wheel_metadata_assets_and_record_hashes) ... ok
+test_zipapp_runs_without_site_packages (tests.test_packaging.PackagingTests.test_zipapp_runs_without_site_packages) ... ok
+test_local_venv_symlinks_are_not_source_inputs (tests.test_packaging.SourceSelectionTests.test_local_venv_symlinks_are_not_source_inputs) ... ok
+test_symlink_in_selected_source_is_rejected (tests.test_packaging.SourceSelectionTests.test_symlink_in_selected_source_is_rejected) ... ok
+test_atomic_bundle_and_posix_permissions (tests.test_reporting.ReportTests.test_atomic_bundle_and_posix_permissions) ... ok
+test_concurrent_reports_do_not_overwrite (tests.test_reporting.ReportTests.test_concurrent_reports_do_not_overwrite) ... ok
+test_empty_report_and_input_accounting (tests.test_reporting.ReportTests.test_empty_report_and_input_accounting) ... ok
+test_ephemeral_pseudonyms_not_reused_between_runs (tests.test_reporting.ReportTests.test_ephemeral_pseudonyms_not_reused_between_runs) ... ok
+test_explicit_query_opt_in (tests.test_reporting.ReportTests.test_explicit_query_opt_in) ... ok
+test_hmac_consistent_across_references_and_formats (tests.test_reporting.ReportTests.test_hmac_consistent_across_references_and_formats) ... ok
+test_html_actor_limit_does_not_truncate_json (tests.test_reporting.ReportTests.test_html_actor_limit_does_not_truncate_json) ... ok
+test_html_escapes_site_payload_and_evidence (tests.test_reporting.ReportTests.test_html_escapes_site_payload_and_evidence) ... ok
+test_interrupt_during_report_write_rolls_back (tests.test_reporting.ReportTests.test_interrupt_during_report_write_rolls_back) ... ok
+test_invalid_hmac_key_rejected (tests.test_reporting.ReportTests.test_invalid_hmac_key_rejected) ... ok
+test_output_symlink_rejected (tests.test_reporting.ReportTests.test_output_symlink_rejected) ... ok
+test_query_redaction_applies_to_every_format (tests.test_reporting.ReportTests.test_query_redaction_applies_to_every_format) ... ok
+test_renderer_failure_rolls_back_bundle (tests.test_reporting.ReportTests.test_renderer_failure_rolls_back_bundle) ... ok
+test_unknown_json_types_and_nan_rejected (tests.test_reporting.ReportTests.test_unknown_json_types_and_nan_rejected) ... ok
+test_url_userinfo_fragment_and_control_never_leak (tests.test_reporting.ReportTests.test_url_userinfo_fragment_and_control_never_leak) ... ok
+test_world_writable_output_rejected (tests.test_reporting.ReportTests.test_world_writable_output_rejected) ... ok
+test_all_weights_zero_disable_repetition (tests.test_scoring.ScoringTests.test_all_weights_zero_disable_repetition) ... ok
+test_allowlist_suppression_preserves_evidence (tests.test_scoring.ScoringTests.test_allowlist_suppression_preserves_evidence) ... ok
+test_benign_population_does_not_amplify_other_actor (tests.test_scoring.ScoringTests.test_benign_population_does_not_amplify_other_actor) ... ok
+test_campaign_scored_after_final_actor_scores (tests.test_scoring.ScoringTests.test_campaign_scored_after_final_actor_scores) ... ok
+test_custom_thresholds (tests.test_scoring.ScoringTests.test_custom_thresholds) ... ok
+test_repetition_and_additive_breakdown (tests.test_scoring.ScoringTests.test_repetition_and_additive_breakdown) ... ok
+test_score_bounded_and_no_order_dependence (tests.test_scoring.ScoringTests.test_score_bounded_and_no_order_dependence) ... ok
+test_single_payload_base (tests.test_scoring.ScoringTests.test_single_payload_base) ... ok
+
+----------------------------------------------------------------------
+Ran 130 tests in 2.146s
+
+OK
+{
+  "generated_at": "2026-09-08T00:54:27.032551+00:00",
+  "python": "3.13.14",
+  "platform": "Linux",
+  "tests_run": 130,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "expected_failures": 0,
+  "unexpected_successes": 0,
+  "successful": true,
+  "elapsed_seconds": 2.1486,
+  "python_sources_sha256": "b83ae6dc0e7bb9b81eaedd2a9b02d67c24b25c7588010e1e6e4216e7e1deaaa6"
+}

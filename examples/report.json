@@ -1,0 +1,945 @@
+{
+  "actors": [
+    {
+      "behavior": {
+        "interval_cv": 0.0,
+        "mean_interval_seconds": 5.0,
+        "rhythmic": true
+      },
+      "evidence": [
+        {
+          "confidence": 0.75,
+          "details": "LFI_RFI: request-level signal observed; success is not established.",
+          "kind": "LFI_RFI",
+          "metrics": {
+            "matched_requests": 8
+          },
+          "references": [
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 6,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:00+00:00",
+              "url": "/download"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 9,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:05+00:00",
+              "url": "/view"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 15,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:15+00:00",
+              "url": "/download"
+            }
+          ],
+          "source": "RequestSignatures"
+        },
+        {
+          "confidence": 0.5,
+          "details": "SCANNER_UA: request-level signal observed; success is not established.",
+          "kind": "SCANNER_UA",
+          "metrics": {
+            "matched_requests": 12
+          },
+          "references": [
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 6,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:00+00:00",
+              "url": "/download"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 9,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:05+00:00",
+              "url": "/view"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 12,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:10+00:00",
+              "url": "/.env"
+            }
+          ],
+          "source": "RequestSignatures"
+        },
+        {
+          "confidence": 0.75,
+          "details": "SENSITIVE_PATH: request-level signal observed; success is not established.",
+          "kind": "SENSITIVE_PATH",
+          "metrics": {
+            "matched_requests": 4
+          },
+          "references": [
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 12,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:10+00:00",
+              "url": "/.env"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 23,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:25+00:00",
+              "url": "/.env"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 34,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:40+00:00",
+              "url": "/.env"
+            }
+          ],
+          "source": "RequestSignatures"
+        },
+        {
+          "confidence": 0.65,
+          "details": "Low-variance request cadence coincides with probing or repeated login failures.",
+          "kind": "AUTOMATED_SCAN",
+          "metrics": {
+            "interval_cv": 0.0,
+            "mean_interval_seconds": 5.0
+          },
+          "references": [
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 6,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:00+00:00",
+              "url": "/download"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 9,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:05+00:00",
+              "url": "/view"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 12,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:10+00:00",
+              "url": "/.env"
+            }
+          ],
+          "source": "TemporalDetector"
+        },
+        {
+          "confidence": 0.6,
+          "details": "Similar suspicious paths and time windows; shared ownership is not established.",
+          "kind": "CORRELATED_ACTIVITY",
+          "metrics": {
+            "group_id": "group-155aa03493e6922b",
+            "group_size": 2
+          },
+          "references": [],
+          "source": "GraphDetector"
+        },
+        {
+          "confidence": 0.7,
+          "details": "Several signal families are present; they are not statistically independent proof of compromise.",
+          "kind": "MULTIPLE_SIGNALS",
+          "metrics": {
+            "families": "request_payload, request_behavior"
+          },
+          "references": [],
+          "source": "MetaDetector"
+        },
+        {
+          "confidence": 1.0,
+          "details": "Triage priority on a 0–100 scale, not a probability or proof of exploitation.",
+          "kind": "risk_score",
+          "metrics": {
+            "AUTOMATED_SCAN": 10,
+            "CORRELATED_ACTIVITY": 10,
+            "LFI_RFI": 45,
+            "SCANNER_UA": 5,
+            "SENSITIVE_PATH": 15,
+            "repeated_payload_requests": 9,
+            "score": 94
+          },
+          "references": [],
+          "source": "ScoringEngine"
+        }
+      ],
+      "ip_address": "203.0.113.10",
+      "metrics": {
+        "avg_url_entropy": 3.408529,
+        "error_ratio": 1.0,
+        "first_seen": "2026-09-08T00:00:00+00:00",
+        "last_seen": "2026-09-08T00:00:55+00:00",
+        "requests": 12,
+        "response_bytes": 1536,
+        "unique_paths": 3
+      },
+      "mitre_techniques": [
+        {
+          "id": "T1190",
+          "name": "Exploit Public-Facing Application",
+          "status": "context_only",
+          "tactic": "Initial Access",
+          "url": "https://attack.mitre.org/techniques/T1190/"
+        },
+        {
+          "id": "T1595",
+          "name": "Active Scanning",
+          "status": "context_only",
+          "tactic": "Reconnaissance",
+          "url": "https://attack.mitre.org/techniques/T1595/"
+        }
+      ],
+      "score": 94,
+      "score_breakdown": {
+        "AUTOMATED_SCAN": 10,
+        "CORRELATED_ACTIVITY": 10,
+        "LFI_RFI": 45,
+        "SCANNER_UA": 5,
+        "SENSITIVE_PATH": 15,
+        "repeated_payload_requests": 9
+      },
+      "severity": "high",
+      "suppressed": false,
+      "tags": [
+        "AUTOMATED_SCAN",
+        "CORRELATED_ACTIVITY",
+        "LFI_RFI",
+        "MULTIPLE_SIGNALS",
+        "SCANNER_UA",
+        "SENSITIVE_PATH"
+      ]
+    },
+    {
+      "behavior": {
+        "interval_cv": 0.0,
+        "mean_interval_seconds": 5.0,
+        "rhythmic": true
+      },
+      "evidence": [
+        {
+          "confidence": 0.75,
+          "details": "LFI_RFI: request-level signal observed; success is not established.",
+          "kind": "LFI_RFI",
+          "metrics": {
+            "matched_requests": 8
+          },
+          "references": [
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 7,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:01+00:00",
+              "url": "/download"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 10,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:06+00:00",
+              "url": "/view"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 16,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:16+00:00",
+              "url": "/download"
+            }
+          ],
+          "source": "RequestSignatures"
+        },
+        {
+          "confidence": 0.5,
+          "details": "SCANNER_UA: request-level signal observed; success is not established.",
+          "kind": "SCANNER_UA",
+          "metrics": {
+            "matched_requests": 12
+          },
+          "references": [
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 7,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:01+00:00",
+              "url": "/download"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 10,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:06+00:00",
+              "url": "/view"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 13,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:11+00:00",
+              "url": "/.env"
+            }
+          ],
+          "source": "RequestSignatures"
+        },
+        {
+          "confidence": 0.75,
+          "details": "SENSITIVE_PATH: request-level signal observed; success is not established.",
+          "kind": "SENSITIVE_PATH",
+          "metrics": {
+            "matched_requests": 4
+          },
+          "references": [
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 13,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:11+00:00",
+              "url": "/.env"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 24,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:26+00:00",
+              "url": "/.env"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 35,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:41+00:00",
+              "url": "/.env"
+            }
+          ],
+          "source": "RequestSignatures"
+        },
+        {
+          "confidence": 0.65,
+          "details": "Low-variance request cadence coincides with probing or repeated login failures.",
+          "kind": "AUTOMATED_SCAN",
+          "metrics": {
+            "interval_cv": 0.0,
+            "mean_interval_seconds": 5.0
+          },
+          "references": [
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 7,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:01+00:00",
+              "url": "/download"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 10,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:06+00:00",
+              "url": "/view"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 13,
+              "method": "GET",
+              "status_code": 404,
+              "timestamp": "2026-09-08T00:00:11+00:00",
+              "url": "/.env"
+            }
+          ],
+          "source": "TemporalDetector"
+        },
+        {
+          "confidence": 0.6,
+          "details": "Similar suspicious paths and time windows; shared ownership is not established.",
+          "kind": "CORRELATED_ACTIVITY",
+          "metrics": {
+            "group_id": "group-155aa03493e6922b",
+            "group_size": 2
+          },
+          "references": [],
+          "source": "GraphDetector"
+        },
+        {
+          "confidence": 0.7,
+          "details": "Several signal families are present; they are not statistically independent proof of compromise.",
+          "kind": "MULTIPLE_SIGNALS",
+          "metrics": {
+            "families": "request_payload, request_behavior"
+          },
+          "references": [],
+          "source": "MetaDetector"
+        },
+        {
+          "confidence": 1.0,
+          "details": "Triage priority on a 0–100 scale, not a probability or proof of exploitation.",
+          "kind": "risk_score",
+          "metrics": {
+            "AUTOMATED_SCAN": 10,
+            "CORRELATED_ACTIVITY": 10,
+            "LFI_RFI": 45,
+            "SCANNER_UA": 5,
+            "SENSITIVE_PATH": 15,
+            "repeated_payload_requests": 9,
+            "score": 94
+          },
+          "references": [],
+          "source": "ScoringEngine"
+        }
+      ],
+      "ip_address": "203.0.113.11",
+      "metrics": {
+        "avg_url_entropy": 3.408529,
+        "error_ratio": 1.0,
+        "first_seen": "2026-09-08T00:00:01+00:00",
+        "last_seen": "2026-09-08T00:00:56+00:00",
+        "requests": 12,
+        "response_bytes": 1536,
+        "unique_paths": 3
+      },
+      "mitre_techniques": [
+        {
+          "id": "T1190",
+          "name": "Exploit Public-Facing Application",
+          "status": "context_only",
+          "tactic": "Initial Access",
+          "url": "https://attack.mitre.org/techniques/T1190/"
+        },
+        {
+          "id": "T1595",
+          "name": "Active Scanning",
+          "status": "context_only",
+          "tactic": "Reconnaissance",
+          "url": "https://attack.mitre.org/techniques/T1595/"
+        }
+      ],
+      "score": 94,
+      "score_breakdown": {
+        "AUTOMATED_SCAN": 10,
+        "CORRELATED_ACTIVITY": 10,
+        "LFI_RFI": 45,
+        "SCANNER_UA": 5,
+        "SENSITIVE_PATH": 15,
+        "repeated_payload_requests": 9
+      },
+      "severity": "high",
+      "suppressed": false,
+      "tags": [
+        "AUTOMATED_SCAN",
+        "CORRELATED_ACTIVITY",
+        "LFI_RFI",
+        "MULTIPLE_SIGNALS",
+        "SCANNER_UA",
+        "SENSITIVE_PATH"
+      ]
+    },
+    {
+      "behavior": {
+        "interval_cv": 0.0,
+        "mean_interval_seconds": 5.0,
+        "rhythmic": true
+      },
+      "evidence": [
+        {
+          "confidence": 0.6,
+          "details": "Repeated HTTP 401/403 on configured login paths; not proof of credential stuffing.",
+          "kind": "AUTH_FAILURE_BURST",
+          "metrics": {
+            "peak_count": 12,
+            "window_seconds": 300
+          },
+          "references": [
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 2,
+              "method": "GET",
+              "status_code": 401,
+              "timestamp": "2026-09-08T00:00:00+00:00",
+              "url": "/login"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 8,
+              "method": "GET",
+              "status_code": 401,
+              "timestamp": "2026-09-08T00:00:05+00:00",
+              "url": "/login"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 11,
+              "method": "GET",
+              "status_code": 401,
+              "timestamp": "2026-09-08T00:00:10+00:00",
+              "url": "/login"
+            }
+          ],
+          "source": "BehaviorDetector"
+        },
+        {
+          "confidence": 0.65,
+          "details": "Low-variance request cadence coincides with probing or repeated login failures.",
+          "kind": "AUTOMATED_SCAN",
+          "metrics": {
+            "interval_cv": 0.0,
+            "mean_interval_seconds": 5.0
+          },
+          "references": [
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 2,
+              "method": "GET",
+              "status_code": 401,
+              "timestamp": "2026-09-08T00:00:00+00:00",
+              "url": "/login"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 8,
+              "method": "GET",
+              "status_code": 401,
+              "timestamp": "2026-09-08T00:00:05+00:00",
+              "url": "/login"
+            },
+            {
+              "input_id": "input-1",
+              "ioc_feeds": [],
+              "line": 11,
+              "method": "GET",
+              "status_code": 401,
+              "timestamp": "2026-09-08T00:00:10+00:00",
+              "url": "/login"
+            }
+          ],
+          "source": "TemporalDetector"
+        },
+        {
+          "confidence": 1.0,
+          "details": "Triage priority on a 0–100 scale, not a probability or proof of exploitation.",
+          "kind": "risk_score",
+          "metrics": {
+            "AUTH_FAILURE_BURST": 40,
+            "AUTOMATED_SCAN": 10,
+            "score": 50
+          },
+          "references": [],
+          "source": "ScoringEngine"
+        }
+      ],
+      "ip_address": "192.0.2.60",
+      "metrics": {
+        "avg_url_entropy": 2.584963,
+        "error_ratio": 1.0,
+        "first_seen": "2026-09-08T00:00:00+00:00",
+        "last_seen": "2026-09-08T00:00:55+00:00",
+        "requests": 12,
+        "response_bytes": 1536,
+        "unique_paths": 1
+      },
+      "mitre_techniques": [
+        {
+          "id": "T1110",
+          "name": "Brute Force",
+          "status": "context_only",
+          "tactic": "Credential Access",
+          "url": "https://attack.mitre.org/techniques/T1110/"
+        },
+        {
+          "id": "T1595",
+          "name": "Active Scanning",
+          "status": "context_only",
+          "tactic": "Reconnaissance",
+          "url": "https://attack.mitre.org/techniques/T1595/"
+        }
+      ],
+      "score": 50,
+      "score_breakdown": {
+        "AUTH_FAILURE_BURST": 40,
+        "AUTOMATED_SCAN": 10
+      },
+      "severity": "medium",
+      "suppressed": false,
+      "tags": [
+        "AUTH_FAILURE_BURST",
+        "AUTOMATED_SCAN"
+      ]
+    },
+    {
+      "behavior": {},
+      "evidence": [
+        {
+          "confidence": 1.0,
+          "details": "Triage priority on a 0–100 scale, not a probability or proof of exploitation.",
+          "kind": "risk_score",
+          "metrics": {
+            "score": 0
+          },
+          "references": [],
+          "source": "ScoringEngine"
+        }
+      ],
+      "ip_address": "192.0.2.44",
+      "metrics": {
+        "avg_url_entropy": 2.5,
+        "error_ratio": 0.0,
+        "first_seen": "2026-09-08T00:00:00+00:00",
+        "last_seen": "2026-09-08T00:00:00+00:00",
+        "requests": 1,
+        "response_bytes": 128,
+        "unique_paths": 1
+      },
+      "mitre_techniques": [],
+      "score": 0,
+      "score_breakdown": {},
+      "severity": "info",
+      "suppressed": false,
+      "tags": []
+    },
+    {
+      "behavior": {
+        "interval_cv": 0.0,
+        "mean_interval_seconds": 30.0,
+        "rhythmic": true
+      },
+      "evidence": [
+        {
+          "confidence": 1.0,
+          "details": "Triage priority on a 0–100 scale, not a probability or proof of exploitation.",
+          "kind": "risk_score",
+          "metrics": {
+            "score": 0
+          },
+          "references": [],
+          "source": "ScoringEngine"
+        }
+      ],
+      "ip_address": "198.51.100.20",
+      "metrics": {
+        "avg_url_entropy": 2.521641,
+        "error_ratio": 0.0,
+        "first_seen": "2026-09-08T00:00:00+00:00",
+        "last_seen": "2026-09-08T00:05:30+00:00",
+        "requests": 12,
+        "response_bytes": 1536,
+        "unique_paths": 1
+      },
+      "mitre_techniques": [],
+      "score": 0,
+      "score_breakdown": {},
+      "severity": "info",
+      "suppressed": false,
+      "tags": []
+    },
+    {
+      "behavior": {},
+      "evidence": [
+        {
+          "confidence": 1.0,
+          "details": "Triage priority on a 0–100 scale, not a probability or proof of exploitation.",
+          "kind": "risk_score",
+          "metrics": {
+            "score": 0
+          },
+          "references": [],
+          "source": "ScoringEngine"
+        }
+      ],
+      "ip_address": "198.51.100.21",
+      "metrics": {
+        "avg_url_entropy": 2.897258,
+        "error_ratio": 0.0,
+        "first_seen": "2026-09-08T00:00:00+00:00",
+        "last_seen": "2026-09-08T00:00:51+00:00",
+        "requests": 4,
+        "response_bytes": 512,
+        "unique_paths": 4
+      },
+      "mitre_techniques": [],
+      "score": 0,
+      "score_breakdown": {},
+      "severity": "info",
+      "suppressed": false,
+      "tags": []
+    },
+    {
+      "behavior": {},
+      "evidence": [
+        {
+          "confidence": 1.0,
+          "details": "Triage priority on a 0–100 scale, not a probability or proof of exploitation.",
+          "kind": "risk_score",
+          "metrics": {
+            "score": 0
+          },
+          "references": [],
+          "source": "ScoringEngine"
+        }
+      ],
+      "ip_address": "2001:db8::21",
+      "metrics": {
+        "avg_url_entropy": 1.690643,
+        "error_ratio": 0.0,
+        "first_seen": "2026-09-08T00:00:00+00:00",
+        "last_seen": "2026-09-08T00:00:46+00:00",
+        "requests": 3,
+        "response_bytes": 384,
+        "unique_paths": 3
+      },
+      "mitre_techniques": [],
+      "score": 0,
+      "score_breakdown": {},
+      "severity": "info",
+      "suppressed": false,
+      "tags": []
+    }
+  ],
+  "campaigns": [
+    {
+      "actors": [
+        "203.0.113.10",
+        "203.0.113.11"
+      ],
+      "id": "group-155aa03493e6922b",
+      "mean_score": 94.0,
+      "mitre_techniques": [
+        {
+          "id": "T1190",
+          "name": "Exploit Public-Facing Application",
+          "status": "context_only",
+          "tactic": "Initial Access",
+          "url": "https://attack.mitre.org/techniques/T1190/"
+        },
+        {
+          "id": "T1595",
+          "name": "Active Scanning",
+          "status": "context_only",
+          "tactic": "Reconnaissance",
+          "url": "https://attack.mitre.org/techniques/T1595/"
+        }
+      ],
+      "tags": [
+        "AUTOMATED_SCAN",
+        "CORRELATED_ACTIVITY",
+        "LFI_RFI",
+        "MULTIPLE_SIGNALS",
+        "SCANNER_UA",
+        "SENSITIVE_PATH"
+      ],
+      "type": "correlated_activity"
+    }
+  ],
+  "detectors": {
+    "behavior": {
+      "auth_failure_bursts": 1,
+      "enumeration": 0,
+      "error_bursts": 0
+    },
+    "correlation": {
+      "candidate_pairs": 1,
+      "edges": 1,
+      "enabled": true,
+      "groups": 1,
+      "pair_evaluations": 15
+    },
+    "ioc": {
+      "enabled": false,
+      "feeds": [],
+      "matched_events": 0
+    },
+    "meta": {
+      "actors_with_multiple_signal_families": 2
+    },
+    "scoring": {
+      "high_threshold": 70,
+      "medium_threshold": 40,
+      "scale": "0..100"
+    },
+    "temporal": {
+      "automated_probe_actors": 3,
+      "rhythmic_actors": 4
+    }
+  },
+  "inputs": [
+    {
+      "accepted": 56,
+      "blank": 0,
+      "bytes_read": 5678,
+      "filtered": 0,
+      "input_id": "input-1",
+      "invalid": 0,
+      "lines": 56,
+      "name": "access.log",
+      "sha256": "8f955f941d405e2400d81052cead4982e9c4d2d8f67a7807d0c111c593d82fb8"
+    }
+  ],
+  "metadata": {
+    "config_sha256": "e65c8993dfca465512a3d098309d01ad8315720b6f689c6c22182f8885d04c20",
+    "elapsed_seconds": 0.007736,
+    "generated_at": "2026-09-08T00:44:55.400891+00:00",
+    "input_status": "complete",
+    "limitations": [
+      "Signals describe observed requests, not proven exploitation or operator identity.",
+      "Scores prioritize review; evidence confidence is heuristic, not a calibrated probability.",
+      "HTTP 200 and matching ATT&CK context do not establish compromise.",
+      "One run covers one site and the explicitly supplied files; no live collection or automatic blocking.",
+      "IP pseudonyms and query removal are not complete PII anonymization; URL paths may contain sensitive values."
+    ],
+    "privacy": {
+      "ip_pseudonymization": false,
+      "key_mode": "not_applicable",
+      "query_included": false
+    },
+    "site": "Demo / Web agency",
+    "tool": "SIGMA-PROBE",
+    "version": "3.0.0rc1"
+  },
+  "parse_errors": [],
+  "recommendations": [
+    {
+      "action_items": [
+        "Проверить общие подозрительные пути и временные интервалы внутри одного сайта.",
+        "Не интерпретировать сходство как доказанный ботнет, общую организацию или канал C2."
+      ],
+      "actor_ids": [
+        "203.0.113.10",
+        "203.0.113.11"
+      ],
+      "id": "correlation-review",
+      "priority": "high",
+      "rationale": "Рекомендация для ручного расследования; никаких действий на инфраструктуре не выполнено.",
+      "title": "Проверить похожую активность нескольких источников"
+    },
+    {
+      "action_items": [
+        "Сопоставить указанные строки с error-логами приложения, WAF и серверной телеметрией.",
+        "Не считать HTTP 200 доказательством успешной эксплуатации; проверить фактический ответ и побочные эффекты.",
+        "Устранить подтверждённую причину в приложении; WAF-правило сначала проверить в наблюдательном режиме."
+      ],
+      "actor_ids": [
+        "203.0.113.10",
+        "203.0.113.11"
+      ],
+      "id": "payload-review",
+      "priority": "high",
+      "rationale": "Рекомендация для ручного расследования; никаких действий на инфраструктуре не выполнено.",
+      "title": "Проверить попытки эксплуатации приложения"
+    },
+    {
+      "action_items": [
+        "Сопоставить источник с согласованными окнами сканирования и инвентарём мониторинга.",
+        "Проверить корректность real client IP на доверенном reverse proxy.",
+        "Вводить исключения только по проверенным IP/CIDR, не по легко подделываемому User-Agent."
+      ],
+      "actor_ids": [
+        "192.0.2.60",
+        "203.0.113.10",
+        "203.0.113.11"
+      ],
+      "id": "probe-review",
+      "priority": "high",
+      "rationale": "Рекомендация для ручного расследования; никаких действий на инфраструктуре не выполнено.",
+      "title": "Отделить разрешённые проверки от сканирования"
+    },
+    {
+      "action_items": [
+        "Проверить, что .env, .git и резервные копии не выдаются веб-сервером.",
+        "При подтверждённой выдаче секрета ограничить доступ и организовать его ротацию по процедуре инцидента."
+      ],
+      "actor_ids": [
+        "203.0.113.10",
+        "203.0.113.11"
+      ],
+      "id": "secret-path-review",
+      "priority": "high",
+      "rationale": "Рекомендация для ручного расследования; никаких действий на инфраструктуре не выполнено.",
+      "title": "Проверить доступность служебных файлов"
+    },
+    {
+      "action_items": [
+        "Проверить реальные auth-события: access-log не содержит результата проверки пароля во всех приложениях.",
+        "Оценить rate limiting и MFA; отделить общие NAT/proxy-адреса от отдельного клиента.",
+        "Не блокировать подсети автоматически по одному агрегированному IP."
+      ],
+      "actor_ids": [
+        "192.0.2.60"
+      ],
+      "id": "authentication-review",
+      "priority": "medium",
+      "rationale": "Рекомендация для ручного расследования; никаких действий на инфраструктуре не выполнено.",
+      "title": "Разобрать серию отказов авторизации"
+    }
+  ],
+  "schema_version": "1.0",
+  "summary": {
+    "accepted_events": 56,
+    "actors": 7,
+    "correlation_groups": 1,
+    "filtered_events": 0,
+    "high": 2,
+    "info": 4,
+    "invalid_lines": 0,
+    "low": 0,
+    "medium": 1,
+    "suppressed": 0
+  }
+}

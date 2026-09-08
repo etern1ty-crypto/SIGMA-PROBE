@@ -1,0 +1,14 @@
+{
+  "generated_at": "2026-09-08T00:54:27.032551+00:00",
+  "python": "3.13.14",
+  "platform": "Linux",
+  "tests_run": 130,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "expected_failures": 0,
+  "unexpected_successes": 0,
+  "successful": true,
+  "elapsed_seconds": 2.1486,
+  "python_sources_sha256": "b83ae6dc0e7bb9b81eaedd2a9b02d67c24b25c7588010e1e6e4216e7e1deaaa6"
+}

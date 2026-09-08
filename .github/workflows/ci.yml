@@ -1,0 +1,47 @@
+name: Validate package
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    env:
+      PYTHONPATH: src
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Unit, integration and security regressions
+        run: python -m unittest discover -s tests -t . -v
+      - name: Syntax, dependency and documentation checks
+        run: python scripts/check_repo.py
+      - name: Build offline distributions
+        run: python scripts/build_dist.py
+      - name: Install wheel without network
+        run: |
+          python -m pip install --no-index --no-deps --force-reinstall dist/*.whl
+          python -m pip check
+          python -I -m sigma_probe --version
+          python -I -S dist/sigma-probe.pyz analyze -i examples/access.log -o /tmp/sigma-probe-ci
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run isolated one-shot container
+        run: |
+          docker build -t sigma-probe:ci .
+          mkdir -m 700 container-reports
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --pids-limit 64 --memory 1g --cpus 1 \
+            --user "$(id -u):$(id -g)" --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            -v "$PWD/examples:/logs:ro" -v "$PWD/container-reports:/reports:rw" \
+            sigma-probe:ci analyze -i /logs/access.log -o /reports --format json

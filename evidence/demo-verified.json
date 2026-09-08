@@ -1,0 +1,17 @@
+{
+  "counts_reconciled": true,
+  "independent_input_lines": 56,
+  "independent_unique_ips": 7,
+  "report_summary": {
+    "accepted_events": 56,
+    "actors": 7,
+    "correlation_groups": 1,
+    "filtered_events": 0,
+    "high": 2,
+    "info": 4,
+    "invalid_lines": 0,
+    "low": 0,
+    "medium": 1,
+    "suppressed": 0
+  }
+}
