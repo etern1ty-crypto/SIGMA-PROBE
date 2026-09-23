@@ -67,7 +67,7 @@ mkdir -p reports && chmod 700 reports
 SIGMA_UID="$(id -u)" SIGMA_GID="$(id -g)" docker compose run --rm sigma-probe
 ```
 
-Для production задайте `PYTHON_IMAGE` утверждённым образом с digest через build arg. В поставке оставлен читаемый `python:3.13-slim`, а не выдуманный digest. Pull base image — этап deployment/build с сетевыми правами, **runtime приложения сети не требует**. Структура Docker/Compose проверена статически; реальная сборка/изоляция контейнера в текущем sandbox не доказана.
+Для production задайте `PYTHON_IMAGE` утверждённым образом с digest через build arg. В поставке оставлен читаемый `python:3.13-slim`, а не выдуманный digest. Pull base image — этап deployment/build с сетевыми правами, **runtime приложения сети не требует**. Сборка и one-shot запуск контейнера прошли в GitHub Actions; [отдельный lab](https://github.com/etern1ty-crypto/SIGMA-PROBE/actions/runs/35846770795) проверил Nginx/Angie и три контейнерных окружения российских ОС. Изоляция на конкретном production-хосте требует отдельной проверки.
 
 ## Права и файлы
 

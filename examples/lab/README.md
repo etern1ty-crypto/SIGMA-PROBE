@@ -15,7 +15,7 @@ Read the generated bundle under `examples/lab/reports/`, then verify it with `PY
 
 To use Angie, set `LAB_PROXY_IMAGE=docker.angie.software/angie:1.12.1-minimal` and `LAB_PROXY_CONFIG=/etc/angie/angie.conf` for each Compose command; check its configuration with `docker compose -f examples/lab/compose.yml exec -T proxy angie -t`.
 
-The images are version-tagged, not digest-pinned. A [manual GitHub Actions workflow](../../.github/workflows/lab.yml) runs the same synthetic replay with both servers and verifies the output bundle. The Nginx run has [passed in CI](https://github.com/etern1ty-crypto/SIGMA-PROBE/actions/runs/35845787674). Before a public reproducibility claim, record and pin image digests and execute the lab on the target platform. Docker is unavailable in this local workspace.
+The images are version-tagged, not digest-pinned. A [manual GitHub Actions workflow](../../.github/workflows/lab.yml) runs the same synthetic replay with both servers and verifies the output bundle. [Both server runs passed](https://github.com/etern1ty-crypto/SIGMA-PROBE/actions/runs/35846770795). Before a public reproducibility claim, record and pin image digests and execute the lab on the target platform. Docker is unavailable in this local workspace.
 
 Stop lab containers with:
 
