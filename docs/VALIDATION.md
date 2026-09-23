@@ -67,13 +67,17 @@ python3 scripts/build_dist.py
 
 Точный трёхкомандный README Quickstart отдельно выполнен в новом venv: установка без index, реальный analyze config.example.toml и получение всех трёх отчётов. После установки также проверены pip check и запуск вне source directory.
 
+## Дополнительная проверка в GitHub Actions
+
+- [PR #6](https://github.com/etern1ty-crypto/SIGMA-PROBE/pull/6): Python 3.11, 3.12 и 3.13, `unittest`, `pytest`, сборка wheel/sdist/zipapp и контейнерный smoke test прошли.
+- [Docker lab](https://github.com/etern1ty-crypto/SIGMA-PROBE/actions/runs/35845259275): `docker compose config`, Nginx `-t`, синтетический replay через Juice Shop, анализ 15 событий, один high actor и проверка bundle прошли. Workflow теперь также явно проверяет количество событий, high actor и отсутствие невалидных строк.
+
 ## Что НЕ проверено
 
-- Hosted GitHub Actions: workflow добавлен, но в реальном репозитории ещё не запускался.
-- Docker image build/run: в sandbox отсутствует Docker. Примеры проверены чтением, не выданы за подтверждённую контейнерную изоляцию.
-- Python 3.11/3.12, Windows/macOS: заявленный минимальный Python совместим по используемым API, но локально исполнен только 3.13.14/Linux. Матрица CI должна подтвердить целевые версии.
+- Локальный Docker, реальный бинарник Angie и целевые российские Linux-дистрибутивы; успешный Nginx lab в GitHub Actions не подтверждает их совместимость.
+- Windows/macOS: локально выполнен Python 3.14.7/Linux; CI подтверждает 3.11–3.13 на Ubuntu.
 - Ruff, mypy, pip-audit и актуальная база advisories: недоступны без установки/сети. Простая AST-проверка не заменяет эти инструменты.
-- Pytest runner локально не установлен. Те же `unittest.TestCase` тесты исполнены штатным `scripts/run_tests.py`; CI настроен запускать их также через pytest после установки dev requirements.
+- Pytest локально не установлен; в CI он выполнил существующий `unittest.TestCase` набор после установки dev requirements.
 - Репрезентативные разрешённые клиентские логи, detection accuracy, performance worst case, paid pilots/PMF.
 - Независимый pentest/полный security review, проверка OS/container CVE и подтверждение upstream-лицензии.
 

@@ -9,7 +9,7 @@ jobs:
     env:
       PYTHONPATH: src
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Validate Compose
         run: docker compose -f examples/lab/compose.yml config --quiet
       - name: Replay synthetic traffic and analyze offline
@@ -21,11 +21,16 @@ jobs:
           docker compose -f examples/lab/compose.yml --profile traffic run --rm traffic
           docker compose -f examples/lab/compose.yml --profile analyze run --rm analyzer
           python - <<'PY'
+          import json
           from pathlib import Path
           from sigma_probe.pipeline.reporting import verify_bundle
           bundles = list(Path('examples/lab/reports').glob('*/manifest.json'))
           assert len(bundles) == 1, bundles
           assert verify_bundle(bundles[0].parent)['valid']
+          report = json.loads((bundles[0].parent / 'report.json').read_text())
+          assert report['summary']['accepted_events'] >= 15, report['summary']
+          assert report['summary']['high'] >= 1, report['summary']
+          assert report['summary']['invalid_lines'] == 0, report['summary']
           PY
       - name: Stop lab
         if: always()
