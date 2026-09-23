@@ -5,9 +5,18 @@ permissions:
   contents: read
 jobs:
   replay:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {server: nginx, image: 'nginx:1.29-alpine', config: '/etc/nginx/nginx.conf', binary: nginx}
+          - {server: angie, image: 'docker.angie.software/angie:1.12.1-minimal', config: '/etc/angie/angie.conf', binary: angie}
     env:
       PYTHONPATH: src
+      LAB_PROXY_IMAGE: ${{ matrix.image }}
+      LAB_PROXY_CONFIG: ${{ matrix.config }}
+      LAB_PROXY_BINARY: ${{ matrix.binary }}
     steps:
       - uses: actions/checkout@v5
       - name: Validate Compose
@@ -17,7 +26,7 @@ jobs:
           mkdir -m 700 -p examples/lab/reports
           export LAB_UID="$(id -u)" LAB_GID="$(id -g)"
           docker compose -f examples/lab/compose.yml up -d proxy
-          docker compose -f examples/lab/compose.yml exec -T proxy nginx -t
+          docker compose -f examples/lab/compose.yml exec -T proxy "$LAB_PROXY_BINARY" -t
           docker compose -f examples/lab/compose.yml --profile traffic run --rm traffic
           docker compose -f examples/lab/compose.yml --profile analyze run --rm analyzer
           python - <<'PY'
