@@ -1,0 +1,32 @@
+name: Manual local attack lab
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose
+        run: docker compose -f examples/lab/compose.yml config --quiet
+      - name: Replay synthetic traffic and analyze offline
+        run: |
+          mkdir -m 700 -p examples/lab/reports
+          export LAB_UID="$(id -u)" LAB_GID="$(id -g)"
+          docker compose -f examples/lab/compose.yml up -d proxy
+          docker compose -f examples/lab/compose.yml exec -T proxy nginx -t
+          docker compose -f examples/lab/compose.yml --profile traffic run --rm traffic
+          docker compose -f examples/lab/compose.yml --profile analyze run --rm analyzer
+          python - <<'PY'
+          from pathlib import Path
+          from sigma_probe.pipeline.reporting import verify_bundle
+          bundles = list(Path('examples/lab/reports').glob('*/manifest.json'))
+          assert len(bundles) == 1, bundles
+          assert verify_bundle(bundles[0].parent)['valid']
+          PY
+      - name: Stop lab
+        if: always()
+        run: docker compose -f examples/lab/compose.yml --profile traffic --profile analyze down

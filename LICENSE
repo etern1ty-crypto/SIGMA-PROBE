@@ -1,10 +1,12 @@
 LICENSING STATUS — UPSTREAM PERMISSION NOT VERIFIED
 
-The supplied SIGMA-PROBE-main archive identifies its project as SIGMA-PROBE
-and names Etern1ty Crypto / eternity-crypto as the original author. Its README
-asserts an MIT license, but the archive contains no LICENSE file, copyright
-notice, or complete permission grant. That assertion alone has not been
-independently verified against the rights holder's repository or consent.
+The historical v1.0.0 source tree identifies as SIGMA-PROBE Helios v2.0 and
+its README asserts MIT while referring to a LICENSE file that is absent from
+that revision. Later README history repeats an MIT badge without supplying a
+license text. The Git repository identifies the project as Etern1ty Crypto /
+eternity-crypto, but Git metadata and a README assertion alone are not a
+complete permission grant or independent confirmation from the rights holder.
+See NOTICE for the source revision and archive-hash status.
 
 This file is a licensing-status notice, NOT an MIT license and NOT a new
 permission grant over upstream code. This revision does not claim ownership

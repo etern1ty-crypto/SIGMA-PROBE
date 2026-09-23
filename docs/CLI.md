@@ -7,6 +7,9 @@ sigma-probe --help
 sigma-probe --version
 sigma-probe validate-config [--config FILE]
 sigma-probe analyze [OPTIONS]
+sigma-probe verify-report BUNDLE_DIR
+sigma-probe propose-block BUNDLE_DIR --ip IP --backend nginx|iptables --expires-at ISO_TIME --reason TEXT
+sigma-probe export-sarif BUNDLE_DIR --source-root REPO --source input-1=relative/log
 ```
 
 Эквивалентные entrypoints:
@@ -43,6 +46,10 @@ Module invocation требует установленного пакета ли�
 | `--debug` | без аргумента | DEBUG logging и traceback при ошибке |
 
 Нет `--workers`, background mode, API listener, remote feed URL, auto-block или response action. Неизвестные параметры не игнорируются.
+
+`verify-report` сверяет SHA-256 артефактов и HMAC, если при создании задан `SIGMA_PROBE_REPORT_KEY`. `propose-block` печатает только черновик и откат; срок действия не применяется автоматически. Для исходных IP нельзя использовать псевдонимизированный отчёт.
+
+`export-sarif` требует `report.json` и явное соответствие **каждого** `input-N` обычному текстовому файлу внутри `--source-root`. Перед выдачей ссылок на строки повторно вычисляется SHA-256 файла. Если анализировался `.gz`, для SARIF укажите распакованную копию с тем же хешем: строка в сжатом файле не является адресуемой строкой GitHub. Пример: `sigma-probe export-sarif reports/RUN --source-root . --source input-1=examples/access.log > findings.sarif`. Эфемерные IP-псевдонимы отклоняются: они разрушили бы стабильность fingerprints. Для GitHub Code Scanning файл должен быть закоммичен в тот же репозиторий; не загружайте приватные production-логи. SARIF содержит абсолютный `source-root` в метаданных, поэтому проверьте его перед передачей. Экспорт ограничен лимитом GitHub в 25 000 результатов.
 
 ## Примеры
 

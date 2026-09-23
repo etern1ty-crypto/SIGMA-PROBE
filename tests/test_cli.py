@@ -34,6 +34,34 @@ class CLITests(unittest.TestCase):
             self.assertTrue(Path(payload['reports']['json']).is_file())
             self.assertIn('Starting offline analysis', result.stderr)
 
+    def test_verify_and_propose_block_commands(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.cli('analyze', '-i', 'examples/access.log', '-o', directory, '--format', 'json')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            bundle = Path(json.loads(result.stdout)['reports']['manifest']).parent
+            verified = self.cli('verify-report', str(bundle))
+            self.assertEqual(verified.returncode, 0, verified.stderr)
+            self.assertTrue(json.loads(verified.stdout)['valid'])
+            proposed = self.cli('propose-block', str(bundle), '--ip', '203.0.113.10', '--backend', 'nginx',
+                                '--expires-at', '2099-01-01T00:00:00Z', '--reason', 'Reviewed incident')
+            self.assertEqual(proposed.returncode, 0, proposed.stderr)
+            self.assertEqual(json.loads(proposed.stdout)['proposal'], ['deny 203.0.113.10;'])
+
+    def test_sarif_requires_hash_matched_repository_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.cli('analyze', '-i', 'examples/access.log', '-o', directory, '--format', 'json')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            bundle = Path(json.loads(result.stdout)['reports']['manifest']).parent
+            sarif = self.cli('export-sarif', str(bundle), '--source-root', str(ROOT), '--source', 'input-1=examples/access.log')
+            self.assertEqual(sarif.returncode, 0, sarif.stderr)
+            payload = json.loads(sarif.stdout)
+            self.assertEqual(payload['version'], '2.1.0')
+            self.assertTrue(payload['runs'][0]['results'])
+            self.assertEqual(payload['runs'][0]['results'][0]['locations'][0]['physicalLocation']['artifactLocation']['uri'], 'examples/access.log')
+            bad = self.cli('export-sarif', str(bundle), '--source-root', str(ROOT), '--source', 'input-1=tests/fixtures/common.log')
+            self.assertEqual(bad.returncode, 2)
+            self.assertEqual(bad.stdout, '')
+
     def test_fail_on_high_exit_three_after_reports(self):
         with tempfile.TemporaryDirectory() as directory:
             result = self.cli('analyze', '-i', 'examples/access.log', '-o', directory, '--fail-on', 'high')

@@ -24,10 +24,13 @@ class RunInterrupted(KeyboardInterrupt):
         super().__init__(f"Interrupted by signal {signum}")
 
 
+_CONTROL = re.compile(r'[\x00-\x1f\x7f-\x9f\ud800-\udfff]')
+
+
 def text(value: Any, name: str, maximum: int = 4096, *, empty: bool = False) -> str:
     if not isinstance(value, str) or (not empty and not value) or len(value) > maximum:
         raise SigmaProbeError(f"{name}: expected a string of length {'0' if empty else '1'}..{maximum}")
-    if any(ord(c) < 32 or 127 <= ord(c) <= 159 or 0xD800 <= ord(c) <= 0xDFFF for c in value):
+    if _CONTROL.search(value):
         raise SigmaProbeError(f"{name}: control characters are not allowed")
     return value
 

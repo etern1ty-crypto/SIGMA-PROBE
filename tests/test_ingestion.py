@@ -1,6 +1,8 @@
 import gzip
+import hashlib
 import io
 import json
+import random
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,6 +16,17 @@ from tests.helpers import BASE, combined
 class IngestionTests(unittest.TestCase):
     def stage(self, **settings):
         return LogIngestionStage(InputConfig(**settings), LimitsConfig())
+
+    def test_seeded_corrupt_records_preserve_accounting(self):
+        rng = random.Random(20260922)
+        corrupt = [rng.randbytes(rng.randrange(1, 180)) + b'\n' for _ in range(500)]
+        payload = combined().encode() + b''.join(corrupt)
+        stage = self.stage(max_error_ratio=1)
+        events = list(stage.process(['-'], io.BytesIO(payload)))
+        source = stage.stats.sources[0]
+        self.assertGreaterEqual(len(events), 1)
+        self.assertEqual(source.lines, source.accepted + source.invalid + source.blank + source.filtered)
+        self.assertEqual(source.sha256, hashlib.sha256(payload).hexdigest())
 
     def test_nginx_combined(self):
         e = self.stage().parse_line(combined())
@@ -34,6 +47,12 @@ class IngestionTests(unittest.TestCase):
         for row in ({'timestamp': BASE.isoformat(), 'source_ip': '203.0.113.1', 'method': 'GET', 'url': '/', 'status_code': 200}, {'time_iso8601': BASE.isoformat(), 'remote_addr': '203.0.113.1', 'request_method': 'GET', 'request_uri': '/', 'status': '200', 'body_bytes_sent': '-'}):
             with self.subTest(row=row):
                 self.assertEqual(self.stage().parse_line(json.dumps(row)).timestamp, BASE)
+
+    def test_angie_nginx_profile_moscow_time_and_cyrillic(self):
+        row = {'time_iso8601': '2026-09-08T03:00:00+03:00', 'remote_addr': '2001:db8::1', 'request_method': 'GET', 'request_uri': '/поиск?q=%D1%82%D0%B5%D1%81%D1%82', 'status': '404', 'body_bytes_sent': '12', 'http_user_agent': 'тест', 'host': 'site-a'}
+        event = self.stage(format='json').parse_line(json.dumps(row, ensure_ascii=False))
+        self.assertEqual((event.timestamp, event.source_ip, event.host), (BASE, '2001:db8::1', 'site-a'))
+        self.assertEqual((event.url, event.status_code, event.response_size), (row['request_uri'], 404, 12))
 
     def test_json_rejects_alias_conflicts_and_duplicate_keys(self):
         base = {'timestamp': BASE.isoformat(), 'source_ip': '203.0.113.1', 'method': 'GET', 'url': '/', 'status_code': 200}
