@@ -1,10 +1,15 @@
 SIGMA-PROBE attribution and scope notice
 
-Original archive: SIGMA-PROBE-main.zip
-Original names: SIGMA-PROBE v2.0 / Helios; internal __version__ was 1.0.0.
-Original authorship fields: Etern1ty Crypto; eternity-crypto.
-Original source SHA-256:
-c1d42366af673cf2068b59f21f2d648a3ff066e61debca9c5654691940f441ad
+Historical source revision: [v1.0.0 initial commit](https://github.com/etern1ty-crypto/SIGMA-PROBE/commit/2ffe53e47884f965b0030dad18b481536b980f9c).
+It is the ancestor tagged v1.0.0 in the upstream Git history and contains the
+SIGMA-PROBE Helios v2.0 source tree. That revision has no LICENSE file.
+
+An earlier inventory cited a supplied file named SIGMA-PROBE-main.zip with
+SHA-256 c1d42366af673cf2068b59f21f2d648a3ff066e61debca9c5654691940f441ad.
+The ZIP is not present in this checkout or the searched local backup, so that
+archive digest is unverified. A newly generated Git archive of the v1.0.0
+commit has a different byte-level digest; archive serialization can differ,
+so this does not establish whether the missing ZIP contained the same tree.
 
 This user-requested revision reworks the code as SIGMA-PROBE 3.0.0rc1,
 an offline, evidence-first web access-log triage tool. No implication of

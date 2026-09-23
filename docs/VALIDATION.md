@@ -1,12 +1,12 @@
 # Что действительно проверено
 
-Проверка от **2026-09-08**, Linux, Python **3.13.14**. Это локальные результаты текущей ревизии, **не hosted CI badge и не production certification**.
+Проверка от **2026-09-23**, Linux, Python **3.14.7**. Это локальные результаты рабочего дерева, **не hosted CI badge и не production certification**.
 
 ## Исполненные проверки
 
 | Проверка | Результат | Доказательство |
 |---|---|---|
-| Unit/regression/integration/CLI/security/packaging | **130 tests, 0 failures, 0 errors, 0 skips** | [test-results.json](../evidence/test-results.json), [полный вывод](../evidence/test-run.txt) |
+| Unit/regression/integration/CLI/security/packaging | **138 tests, 0 failures, 0 errors, 0 skips** | [test-results.json](../evidence/test-results.json), [полный вывод](../evidence/test-run.txt) |
 | Реальный demo pipeline | 56 событий, 7 IP, 2 high, 1 medium, 4 info, 1 group | [demo-verified.json](../evidence/demo-verified.json), [report.json](../examples/report.json) |
 | Исходные дефекты | Восемь targeted воспроизведений; 47 пунктов статического/семантического аудита | [original-reproductions.json](../evidence/original-reproductions.json), [AUDIT.md](AUDIT.md) |
 | Offline source install | Fresh venv без system-site-packages; `pip install --no-index .` успешен | [environment.json](../evidence/environment.json) |
@@ -14,7 +14,7 @@
 | Outside-source execution | Установленный пакет запускается из /tmp с `python -I` | [environment.json](../evidence/environment.json) |
 | Portable zipapp | Реальный analyze под `python -I -S`, без site-packages | [packaging.json](../evidence/packaging.json) |
 | Wheel/sdist | Assets, entry point, METADATA/RECORD hashes, version consistency, safe source selection | tests/test_packaging.py |
-| Syntax/stdlib imports/local doc links | Offline structural check; ограниченный scope | [repo-check.json](../evidence/repo-check.json) |
+| Syntax/stdlib imports/local doc links | 42 Python files, 55 local links, zero runtime/build dependencies; ограниченный scope | [repo-check.json](../evidence/repo-check.json) |
 | HTML | Просмотрены desktop, mobile expanded, dark, empty и partial states; мобильный перенос заголовков исправлен | [visual-qa.json](../evidence/visual-qa.json) |
 
 `test-results.json` содержит точную длительность последнего запуска и SHA-256 совокупности Python sources. Это fingerprint выполненного кода, а не line-coverage percentage. Coverage tool не запускался; «100% покрытия» не заявляется.
@@ -73,7 +73,7 @@ python3 scripts/build_dist.py
 - Docker image build/run: в sandbox отсутствует Docker. Примеры проверены чтением, не выданы за подтверждённую контейнерную изоляцию.
 - Python 3.11/3.12, Windows/macOS: заявленный минимальный Python совместим по используемым API, но локально исполнен только 3.13.14/Linux. Матрица CI должна подтвердить целевые версии.
 - Ruff, mypy, pip-audit и актуальная база advisories: недоступны без установки/сети. Простая AST-проверка не заменяет эти инструменты.
-- Исходный pytest suite: pytest/нужный научный стек установить в закрытой среде не удалось; исходные ошибки воспроизведены отдельным targeted harness, а не вымышленным «старые тесты прошли».
+- Pytest runner локально не установлен. Те же `unittest.TestCase` тесты исполнены штатным `scripts/run_tests.py`; CI настроен запускать их также через pytest после установки dev requirements.
 - Репрезентативные разрешённые клиентские логи, detection accuracy, performance worst case, paid pilots/PMF.
 - Независимый pentest/полный security review, проверка OS/container CVE и подтверждение upstream-лицензии.
 

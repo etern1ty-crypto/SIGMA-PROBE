@@ -29,9 +29,11 @@ from .pipeline.ingestion import LogIngestionStage
 from .pipeline.metadetector import MetaDetector
 from .pipeline.profiling import ActorProfilingStage
 from .pipeline.recommendations import NarrativeEngine
-from .pipeline.reporting import ReportingStage, build_report, json_text
+from .pipeline.reporting import ReportingStage, build_report, json_text, verify_bundle
 from .pipeline.scoring import ScoringEngine
 from .privacy import PrivacyProjector
+from .proposals import propose_block
+from .sarif import export_sarif
 from .validation import RunInterrupted, SigmaProbeError
 
 logger = logging.getLogger(__name__)
@@ -82,7 +84,7 @@ class AnalysisPipeline:
         )
         result.report = build_report(result, config, projector)
         if write_reports:
-            result.report_paths = ReportingStage(config).write(result.report)
+            result.report_paths = ReportingStage(config, os.environ.get('SIGMA_PROBE_REPORT_KEY')).write(result.report)
         logger.info('Analysis complete: events=%d actors=%d partial=%s', result.ingestion.total('accepted'), len(result.actors), result.ingestion.partial)
         return result
 
@@ -129,6 +131,19 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest='command', required=True)
     validate = commands.add_parser('validate-config', help='Validate TOML without analyzing or writing reports')
     validate.add_argument('--config', '-c')
+    verify = commands.add_parser('verify-report', help='Verify report artifact hashes and optional HMAC')
+    verify.add_argument('directory', help='Published report bundle directory')
+    block = commands.add_parser('propose-block', help='Print a review-only block proposal for selected report IPs')
+    block.add_argument('directory', help='Published report bundle directory')
+    block.add_argument('--ip', action='append', required=True, help='Exact raw IP from report (repeatable)')
+    block.add_argument('--backend', choices=('nginx', 'iptables'), required=True)
+    block.add_argument('--expires-at', required=True, help='Future ISO 8601 timestamp with timezone; expiry is not enforced')
+    block.add_argument('--reason', required=True)
+    block.add_argument('--port', type=int, default=443, help='iptables destination TCP port (default 443)')
+    sarif = commands.add_parser('export-sarif', help='Export SARIF for explicitly mapped, hash-matched repository logs')
+    sarif.add_argument('directory', help='Published report bundle directory')
+    sarif.add_argument('--source-root', required=True, help='Repository root containing log fixtures')
+    sarif.add_argument('--source', action='append', required=True, help='input-N=relative/path for each report input')
     analyze = commands.add_parser('analyze', help='Analyze a finite set of local logs')
     analyze.add_argument('--config', '-c', help='TOML configuration path')
     analyze.add_argument('--input', '-i', action='append', help='Input file (repeatable), .gz, or - for stdin')
@@ -192,6 +207,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.command == 'validate-config':
                 config = load_config(args.config)
                 print(json_text({'valid': True, 'schema_version': config.schema_version, 'site': config.site}), end='', flush=True)
+                return 0
+            if args.command == 'verify-report':
+                print(json_text(verify_bundle(args.directory, os.environ.get('SIGMA_PROBE_REPORT_KEY'))), end='', flush=True)
+                return 0
+            if args.command == 'propose-block':
+                proposal = propose_block(args.directory, args.ip, args.backend, args.expires_at, args.reason,
+                                         port=args.port, report_key=os.environ.get('SIGMA_PROBE_REPORT_KEY'))
+                print(json_text(proposal), end='', flush=True)
+                return 0
+            if args.command == 'export-sarif':
+                print(json_text(export_sarif(args.directory, args.source_root, args.source,
+                                             report_key=os.environ.get('SIGMA_PROBE_REPORT_KEY'))), end='', flush=True)
                 return 0
             config = load_config(args.config, overrides=_overrides(args))
             package_logger.setLevel(logging.DEBUG if args.debug else config.log_level)

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import errno
 import hashlib
+import hmac
 import html
 import json
 import logging
@@ -34,6 +35,66 @@ def _json_default(value: Any) -> str:
 
 def json_text(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False, default=_json_default) + '\n'
+
+
+def _manifest_bytes(value: dict[str, Any]) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True).encode('ascii')
+
+
+def _manifest_key(key: str | None) -> bytes | None:
+    if key is None:
+        return None
+    encoded = key.encode('utf-8')
+    if len(encoded) < 32:
+        raise SigmaProbeError('SIGMA_PROBE_REPORT_KEY must contain at least 32 UTF-8 bytes')
+    return encoded
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open('rb') as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def verify_bundle(directory: str | Path, key: str | None = None) -> dict[str, Any]:
+    """Verify a report bundle. A signed bundle requires its separate report key."""
+    root = Path(directory)
+    if root.is_symlink() or not root.is_dir():
+        raise SigmaProbeError('Report bundle must be a directory, not a symlink')
+    manifest_path = root / 'manifest.json'
+    if manifest_path.is_symlink() or not manifest_path.is_file() or manifest_path.stat().st_size > 65_536:
+        raise SigmaProbeError('Missing or oversized report manifest')
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    except (ValueError, UnicodeError) as exc:
+        raise SigmaProbeError('Invalid report manifest') from exc
+    if not isinstance(manifest, dict) or manifest.get('version') != 1:
+        raise SigmaProbeError('Unsupported report manifest')
+    artifacts = manifest.get('artifacts')
+    if not isinstance(artifacts, dict) or not artifacts or set(artifacts) - {'report.json', 'report.html', 'report.txt'}:
+        raise SigmaProbeError('Invalid manifest artifact list')
+    if {path.name for path in root.iterdir()} != set(artifacts) | {'manifest.json'}:
+        raise SigmaProbeError('Report bundle contains missing or unexpected files')
+    signed = manifest.get('hmac_sha256')
+    if signed is not None:
+        secret = _manifest_key(key)
+        if secret is None or not isinstance(signed, str):
+            raise SigmaProbeError('Report HMAC key is required')
+        body = {name: value for name, value in manifest.items() if name != 'hmac_sha256'}
+        expected = hmac.new(secret, _manifest_bytes(body), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, signed):
+            raise SigmaProbeError('Report manifest authentication failed')
+    elif key is not None:
+        raise SigmaProbeError('Report manifest is unsigned')
+    for name, expected in artifacts.items():
+        path = root / name
+        if path.is_symlink() or not path.is_file() or not isinstance(expected, str) or len(expected) != 64:
+            raise SigmaProbeError(f'Invalid report artifact: {name}')
+        if not hmac.compare_digest(_file_sha256(path), expected):
+            raise SigmaProbeError(f'Report artifact changed: {name}')
+    return {'valid': True, 'authenticated': signed is not None, 'artifacts': sorted(artifacts)}
 
 
 def build_report(result: AnalysisResult, config: Settings, projector: PrivacyProjector) -> dict[str, Any]:
@@ -225,8 +286,9 @@ def _check_output_root(root: Path) -> Path:
 
 
 class ReportingStage:
-    def __init__(self, config: Settings) -> None:
+    def __init__(self, config: Settings, manifest_key: str | None = None) -> None:
         self.config = config
+        self._manifest_key = _manifest_key(manifest_key)
 
     def write(self, data: dict[str, Any]) -> dict[str, str]:
         root = _check_output_root(Path(self.config.reporting.output_dir).absolute())
@@ -236,6 +298,7 @@ class ReportingStage:
         renderers = {'json': lambda: json_text(data), 'html': lambda: render_html(data, self.config), 'text': lambda: render_text(data, self.config)}
         extensions = {'json': 'json', 'html': 'html', 'text': 'txt'}
         result: dict[str, str] = {}
+        artifact_hashes: dict[str, str] = {}
         try:
             for format_name in self.config.reporting.formats:
                 content = renderers[format_name]()
@@ -247,7 +310,18 @@ class ReportingStage:
                     handle.write(content)
                     handle.flush()
                     os.fsync(handle.fileno())
+                artifact_hashes[filename] = _file_sha256(target)
                 result[format_name] = str(destination / filename)
+            manifest: dict[str, Any] = {'version': 1, 'artifacts': artifact_hashes}
+            if self._manifest_key is not None:
+                manifest['hmac_sha256'] = hmac.new(self._manifest_key, _manifest_bytes(manifest), hashlib.sha256).hexdigest()
+            with (temporary / 'manifest.json').open('x', encoding='utf-8', newline='\n') as handle:
+                if os.name == 'posix':
+                    os.fchmod(handle.fileno(), 0o600)
+                handle.write(json_text(manifest))
+                handle.flush()
+                os.fsync(handle.fileno())
+            result['manifest'] = str(destination / 'manifest.json')
             if destination.exists():
                 raise SigmaProbeError('Report destination collision; run again')
             os.replace(temporary, destination)

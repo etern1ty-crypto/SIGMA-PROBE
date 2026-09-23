@@ -4,9 +4,10 @@ from dataclasses import replace
 from sigma_probe.config import DetectionConfig, LimitsConfig
 from sigma_probe.pipeline.base import AnalysisContext
 from sigma_probe.pipeline.detectors import BehaviorDetector, GraphDetector, TemporalDetector, cosine_similarity
+from sigma_probe.models.core import ActorProfile
 from sigma_probe.pipeline.metadetector import MetaDetector
 from sigma_probe.validation import LimitExceeded
-from tests.helpers import actor
+from tests.helpers import actor, event
 
 
 def probes(paths):
@@ -60,6 +61,21 @@ class DetectorTests(unittest.TestCase):
         BehaviorDetector(DetectionConfig()).process(AnalysisContext([a]))
         self.assertIn('ERROR_BURST', a.tags)
 
+    def test_web_shell_candidate_requires_repeated_post_and_varied_responses(self):
+        suspicious = ActorProfile('203.0.113.11')
+        benign = ActorProfile('203.0.113.12')
+        for index, size in enumerate((120, 380, 120)):
+            candidate = event('/shell.php', suspicious.ip_address, index)
+            candidate.method, candidate.response_size = 'POST', size
+            suspicious.add_event(candidate)
+            normal = event('/api/orders', benign.ip_address, index)
+            normal.method, normal.response_size = 'POST', size
+            benign.add_event(normal)
+        BehaviorDetector(DetectionConfig()).process(AnalysisContext([suspicious, benign]))
+        self.assertIn('WEB_SHELL_TRAFFIC_CANDIDATE', suspicious.tags)
+        self.assertEqual(len(next(e for e in suspicious.evidence_trail if e.kind == 'WEB_SHELL_TRAFFIC_CANDIDATE').references), 3)
+        self.assertNotIn('WEB_SHELL_TRAFFIC_CANDIDATE', benign.tags)
+
     def test_meta_does_not_invent_botnet_or_inflate_scores(self):
         a = actor('203.0.113.1', ['/read?f=../etc/passwd'] * 12)
         context = AnalysisContext([a])
@@ -81,6 +97,15 @@ class CorrelationTests(unittest.TestCase):
         context = self.run_graph([a, b])
         self.assertEqual(len(context.campaigns), 1)
         self.assertEqual({x.ip_address for x in context.campaigns[0].actors}, {'203.0.113.1', '203.0.113.2'})
+
+    def test_low_volume_cross_subnet_probing_is_labeled_without_attribution(self):
+        addresses = ('203.0.113.1', '198.51.100.2', '192.0.2.3')
+        actors = [actor(ip, probes(['/a', '/b'])) for ip in addresses]
+        context = self.run_graph(actors)
+        self.assertEqual(context.summary['correlation']['distributed_groups'], 1)
+        self.assertTrue(all('DISTRIBUTED_PROBING' in a.tags for a in actors))
+        same_net = [actor(f'203.0.113.{i}', probes(['/a', '/b'])) for i in (1, 2, 3)]
+        self.assertEqual(self.run_graph(same_net).summary['correlation']['distributed_groups'], 0)
 
     def test_unrelated_equal_shape_vectors_do_not_form_group(self):
         a = actor('203.0.113.1', probes(['/a', '/b']))

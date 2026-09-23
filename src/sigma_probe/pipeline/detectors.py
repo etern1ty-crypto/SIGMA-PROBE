@@ -3,14 +3,18 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 import statistics
 from collections import defaultdict, deque
+from ipaddress import ip_address, ip_network
 from itertools import combinations, islice
 
 from ..config import DetectionConfig, LimitsConfig
 from ..models.core import ActorProfile, Evidence, LogEvent, PROBE_TAGS, ThreatCampaign
 from ..validation import LimitExceeded
 from .base import AnalysisContext
+
+_SHELL_PATH = re.compile(r'(?:^|/)(?:shell|webshell|cmd|c99|r57)[^/]*\.php$', re.I)
 
 
 def _peak_window(events: list[LogEvent], seconds: int) -> tuple[int, list[LogEvent]]:
@@ -33,7 +37,7 @@ class BehaviorDetector:
         self.config = config
 
     def process(self, context: AnalysisContext) -> None:
-        counts = {'enumeration': 0, 'auth_failure_bursts': 0, 'error_bursts': 0}
+        counts = {'enumeration': 0, 'auth_failure_bursts': 0, 'error_bursts': 0, 'web_shell_candidates': 0}
         for actor in context.actors:
             if actor.suppressed:
                 continue
@@ -49,6 +53,17 @@ class BehaviorDetector:
                 ))
                 counts['enumeration'] += 1
             auth_events = [e for e in actor.events if e.path in self.config.login_paths and e.status_code in (401, 403)]
+            shell_posts = [e for e in actor.events if e.method == 'POST' and _SHELL_PATH.search(e.path)
+                           and 200 <= e.status_code < 400 and e.response_size > 0]
+            if len(shell_posts) >= 3 and len({e.response_size for e in shell_posts}) >= 2:
+                actor.tags.add('WEB_SHELL_TRAFFIC_CANDIDATE')
+                actor.add_evidence(Evidence(
+                    source='BehaviorDetector', kind='WEB_SHELL_TRAFFIC_CANDIDATE',
+                    details='Repeated POSTs to a shell-like PHP path with varied response sizes; inspect application and server evidence.',
+                    confidence=0.4, metrics={'post_count': len(shell_posts), 'distinct_response_sizes': len({e.response_size for e in shell_posts})},
+                    references=[e.reference() for e in shell_posts[:3]],
+                ))
+                counts['web_shell_candidates'] += 1
             for tag, candidates, threshold, counter, details in (
                 ('AUTH_FAILURE_BURST', auth_events, self.config.auth_failure_threshold, 'auth_failure_bursts', 'Repeated HTTP 401/403 on configured login paths; not proof of credential stuffing.'),
                 ('ERROR_BURST', error_events, self.config.error_burst_threshold, 'error_bursts', 'Burst of HTTP errors; an application fault is also possible.'),
@@ -127,7 +142,7 @@ class GraphDetector:
         self.limits = limits
 
     def process(self, context: AnalysisContext) -> None:
-        summary = {'enabled': self.config.correlation_enabled, 'candidate_pairs': 0, 'pair_evaluations': 0, 'edges': 0, 'groups': 0}
+        summary = {'enabled': self.config.correlation_enabled, 'candidate_pairs': 0, 'pair_evaluations': 0, 'edges': 0, 'groups': 0, 'distributed_groups': 0}
         context.summary['correlation'] = summary
         if not self.config.correlation_enabled:
             return
@@ -232,5 +247,17 @@ class GraphDetector:
                     details='Similar suspicious paths and time windows; shared ownership is not established.',
                     confidence=0.6, metrics={'group_size': len(actors), 'group_id': campaign_id},
                 ))
+            # Cross-subnet, low-volume probing is only a review signal, never attribution.
+            networks = {str(ip_network(f'{a.ip_address}/{24 if ip_address(a.ip_address).version == 4 else 64}', strict=False)) for a in actors}
+            if len(actors) >= 3 and len(networks) >= 3 and all(a.total_requests <= 4 for a in actors):
+                summary['distributed_groups'] += 1
+                for actor in actors:
+                    actor.tags.add('DISTRIBUTED_PROBING')
+                    actor.add_evidence(Evidence(
+                        source='GraphDetector', kind='DISTRIBUTED_PROBING',
+                        details='Low-volume suspicious requests from distinct network prefixes share paths and time; coordination is unproven.',
+                        confidence=0.45, metrics={'group_size': len(actors), 'distinct_networks': len(networks), 'group_id': campaign_id},
+                        references=[e.reference() for e in actor.events if e.heuristic_flags & PROBE_TAGS][:3],
+                    ))
             context.campaigns.append(ThreatCampaign(campaign_id=campaign_id, actors=actors))
         summary.update({'candidate_pairs': len(candidates), 'pair_evaluations': evaluations, 'edges': len(edges), 'groups': len(context.campaigns)})

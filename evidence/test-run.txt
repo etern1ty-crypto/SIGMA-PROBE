@@ -6,10 +6,12 @@ test_input_partial_exit_four_precedes_risk (tests.test_cli.CLITests.test_input_p
 test_invalid_gzip_fails_without_partial_bundle (tests.test_cli.CLITests.test_invalid_gzip_fails_without_partial_bundle) ... ok
 test_legacy_flag_spelling_works (tests.test_cli.CLITests.test_legacy_flag_spelling_works) ... ok
 test_real_cli_writes_reports_and_clean_stdout (tests.test_cli.CLITests.test_real_cli_writes_reports_and_clean_stdout) ... ok
+test_sarif_requires_hash_matched_repository_source (tests.test_cli.CLITests.test_sarif_requires_hash_matched_repository_source) ... ok
 test_sigint_while_stdin_blocked (tests.test_cli.CLITests.test_sigint_while_stdin_blocked) ... ok
 test_sigterm_while_stdin_blocked (tests.test_cli.CLITests.test_sigterm_while_stdin_blocked) ... ok
 test_stdin_and_json_logging (tests.test_cli.CLITests.test_stdin_and_json_logging) ... ok
 test_unknown_cli_parameter_rejected (tests.test_cli.CLITests.test_unknown_cli_parameter_rejected) ... ok
+test_verify_and_propose_block_commands (tests.test_cli.CLITests.test_verify_and_propose_block_commands) ... ok
 test_version_and_help (tests.test_cli.CLITests.test_version_and_help) ... ok
 test_allowlist_and_proxy_validation (tests.test_config.ConfigTests.test_allowlist_and_proxy_validation) ... ok
 test_config_duplicate_keys_invalid_syntax_and_oversize (tests.test_config.ConfigTests.test_config_duplicate_keys_invalid_syntax_and_oversize) ... ok
@@ -26,6 +28,7 @@ test_time_window_validation (tests.test_config.ConfigTests.test_time_window_vali
 test_unknown_top_level_and_nested_settings (tests.test_config.ConfigTests.test_unknown_top_level_and_nested_settings) ... ok
 test_disabled_and_pair_limits (tests.test_detectors.CorrelationTests.test_disabled_and_pair_limits) ... ok
 test_group_size_limit (tests.test_detectors.CorrelationTests.test_group_size_limit) ... ok
+test_low_volume_cross_subnet_probing_is_labeled_without_attribution (tests.test_detectors.CorrelationTests.test_low_volume_cross_subnet_probing_is_labeled_without_attribution) ... ok
 test_no_transitive_campaign_chaining (tests.test_detectors.CorrelationTests.test_no_transitive_campaign_chaining) ... ok
 test_normal_visitors_and_allowlist_not_correlated (tests.test_detectors.CorrelationTests.test_normal_visitors_and_allowlist_not_correlated) ... ok
 test_order_invariance (tests.test_detectors.CorrelationTests.test_order_invariance) ... ok
@@ -40,6 +43,7 @@ test_identical_timestamps_do_not_prove_rhythm (tests.test_detectors.DetectorTest
 test_meta_does_not_invent_botnet_or_inflate_scores (tests.test_detectors.DetectorTests.test_meta_does_not_invent_botnet_or_inflate_scores) ... ok
 test_periodic_payload_attempts_have_evidence (tests.test_detectors.DetectorTests.test_periodic_payload_attempts_have_evidence) ... ok
 test_temporal_threshold_used (tests.test_detectors.DetectorTests.test_temporal_threshold_used) ... ok
+test_web_shell_candidate_requires_repeated_post_and_varied_responses (tests.test_detectors.DetectorTests.test_web_shell_candidate_requires_repeated_post_and_varied_responses) ... ok
 test_broad_actor_window_is_not_sufficient_correlation (tests.test_edge_cases.EdgeCaseTests.test_broad_actor_window_is_not_sufficient_correlation) ... ok
 test_filtered_input_not_false_partial (tests.test_edge_cases.EdgeCaseTests.test_filtered_input_not_false_partial) ... ok
 test_input_iterator_closed_on_profiling_abort (tests.test_edge_cases.EdgeCaseTests.test_input_iterator_closed_on_profiling_abort) ... ok
@@ -48,6 +52,7 @@ test_multi_host_json_refused_instead_of_cross_site_grouping (tests.test_edge_cas
 test_report_invalid_timestamp_does_not_leak_staging_directory (tests.test_edge_cases.EdgeCaseTests.test_report_invalid_timestamp_does_not_leak_staging_directory) ... ok
 test_seeded_malformed_records_fail_as_validation_not_crashes (tests.test_edge_cases.EdgeCaseTests.test_seeded_malformed_records_fail_as_validation_not_crashes) ... ok
 test_url_bidi_controls_are_printable_escapes (tests.test_edge_cases.EdgeCaseTests.test_url_bidi_controls_are_printable_escapes) ... ok
+test_angie_nginx_profile_moscow_time_and_cyrillic (tests.test_ingestion.IngestionTests.test_angie_nginx_profile_moscow_time_and_cyrillic) ... ok
 test_common_ipv6_dash_bytes_and_timezone (tests.test_ingestion.IngestionTests.test_common_ipv6_dash_bytes_and_timezone) ... ok
 test_dash_request_is_invalid_not_fake_event (tests.test_ingestion.IngestionTests.test_dash_request_is_invalid_not_fake_event) ... ok
 test_duplicate_file_identity (tests.test_ingestion.IngestionTests.test_duplicate_file_identity) ... ok
@@ -63,6 +68,7 @@ test_missing_file_and_directory_rejected (tests.test_ingestion.IngestionTests.te
 test_nginx_combined (tests.test_ingestion.IngestionTests.test_nginx_combined) ... ok
 test_partial_input_counted_and_safe_error_messages (tests.test_ingestion.IngestionTests.test_partial_input_counted_and_safe_error_messages) ... ok
 test_reuse_resets_stats_and_stdin_is_not_closed (tests.test_ingestion.IngestionTests.test_reuse_resets_stats_and_stdin_is_not_closed) ... ok
+test_seeded_corrupt_records_preserve_accounting (tests.test_ingestion.IngestionTests.test_seeded_corrupt_records_preserve_accounting) ... ok
 test_strict_ratio_and_all_invalid_failure (tests.test_ingestion.IngestionTests.test_strict_ratio_and_all_invalid_failure) ... ok
 test_time_filter_lower_inclusive_upper_exclusive (tests.test_ingestion.IngestionTests.test_time_filter_lower_inclusive_upper_exclusive) ... ok
 test_trusted_proxy_right_to_left (tests.test_ingestion.IngestionTests.test_trusted_proxy_right_to_left) ... ok
@@ -105,6 +111,8 @@ test_zipapp_runs_without_site_packages (tests.test_packaging.PackagingTests.test
 test_local_venv_symlinks_are_not_source_inputs (tests.test_packaging.SourceSelectionTests.test_local_venv_symlinks_are_not_source_inputs) ... ok
 test_symlink_in_selected_source_is_rejected (tests.test_packaging.SourceSelectionTests.test_symlink_in_selected_source_is_rejected) ... ok
 test_atomic_bundle_and_posix_permissions (tests.test_reporting.ReportTests.test_atomic_bundle_and_posix_permissions) ... ok
+test_authenticated_bundle_detects_modification_and_wrong_key (tests.test_reporting.ReportTests.test_authenticated_bundle_detects_modification_and_wrong_key) ... ok
+test_block_proposal_requires_report_actor_and_never_applies_rule (tests.test_reporting.ReportTests.test_block_proposal_requires_report_actor_and_never_applies_rule) ... ok
 test_concurrent_reports_do_not_overwrite (tests.test_reporting.ReportTests.test_concurrent_reports_do_not_overwrite) ... ok
 test_empty_report_and_input_accounting (tests.test_reporting.ReportTests.test_empty_report_and_input_accounting) ... ok
 test_ephemeral_pseudonyms_not_reused_between_runs (tests.test_reporting.ReportTests.test_ephemeral_pseudonyms_not_reused_between_runs) ... ok
@@ -130,20 +138,20 @@ test_score_bounded_and_no_order_dependence (tests.test_scoring.ScoringTests.test
 test_single_payload_base (tests.test_scoring.ScoringTests.test_single_payload_base) ... ok
 
 ----------------------------------------------------------------------
-Ran 130 tests in 2.146s
+Ran 138 tests in 6.192s
 
 OK
 {
-  "generated_at": "2026-09-08T00:54:27.032551+00:00",
-  "python": "3.13.14",
+  "generated_at": "2026-09-22T21:48:34.022428+00:00",
+  "python": "3.14.7",
   "platform": "Linux",
-  "tests_run": 130,
+  "tests_run": 138,
   "failures": 0,
   "errors": 0,
   "skipped": 0,
   "expected_failures": 0,
   "unexpected_successes": 0,
   "successful": true,
-  "elapsed_seconds": 2.1486,
-  "python_sources_sha256": "b83ae6dc0e7bb9b81eaedd2a9b02d67c24b25c7588010e1e6e4216e7e1deaaa6"
+  "elapsed_seconds": 6.1971,
+  "python_sources_sha256": "049b43373794a0607ca013ae64cb0922db6ea78db560808777b296d770158bfa"
 }

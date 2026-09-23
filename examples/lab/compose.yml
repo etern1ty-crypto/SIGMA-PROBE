@@ -1,0 +1,44 @@
+services:
+  app:
+    image: bkimminich/juice-shop:v20.2.0
+    networks: [lab]
+
+  proxy:
+    image: nginx:1.29-alpine
+    depends_on: [app]
+    ports: ["127.0.0.1:18080:80"]
+    networks: [lab]
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - logs:/logs
+
+  traffic:
+    image: python:3.13-alpine
+    profiles: [traffic]
+    depends_on: [proxy]
+    networks: [lab]
+    volumes:
+      - ./traffic.py:/traffic.py:ro
+    command: ["python", "/traffic.py"]
+
+  analyzer:
+    build:
+      context: ../..
+    profiles: [analyze]
+    network_mode: none
+    user: "${LAB_UID:-10001}:${LAB_GID:-10001}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    volumes:
+      - logs:/logs:ro
+      - ./reports:/reports:rw
+    command: ["analyze", "-i", "/logs/access.log", "-o", "/reports", "--site", "lab.local"]
+
+networks:
+  lab:
+    internal: true
+
+volumes:
+  logs:

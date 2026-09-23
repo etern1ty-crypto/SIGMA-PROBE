@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
+from functools import lru_cache
 from urllib.parse import unquote, urlsplit
 
 from ..models.core import LogEvent
@@ -55,20 +56,27 @@ def normalized_path(target: str) -> str:
     return path or '/'
 
 
+def _url_features(url: str) -> tuple[str, float, frozenset[str]]:
+    path = normalized_path(url)
+    counts = Counter(url)
+    entropy = -sum((n / len(url)) * math.log2(n / len(url)) for n in counts.values())
+    variants = decoded_variants(url)
+    flags = {tag for tag, pattern in _SIGNATURES if any(pattern.search(value) for value in variants)}
+    if _SENSITIVE.search(path):
+        flags.add('SENSITIVE_PATH')
+    return path, entropy, frozenset(flags)
+
+
 class EnrichmentStage:
     name = 'EnrichmentStage'
 
+    def __init__(self) -> None:
+        # ponytail: 8192-entry per-run cache; unique URLs fall back to ordinary parsing.
+        self._url_features = lru_cache(maxsize=8192)(_url_features)
+
     def process(self, event: LogEvent) -> LogEvent:
-        event.path = normalized_path(event.url)
-        counts = Counter(event.url)
-        event.entropy = -sum((n / len(event.url)) * math.log2(n / len(event.url)) for n in counts.values())
-        event.heuristic_flags.clear()
-        variants = decoded_variants(event.url)
-        for tag, pattern in _SIGNATURES:
-            if any(pattern.search(value) for value in variants):
-                event.heuristic_flags.add(tag)
-        if _SENSITIVE.search(event.path):
-            event.heuristic_flags.add('SENSITIVE_PATH')
+        event.path, event.entropy, flags = self._url_features(event.url)
+        event.heuristic_flags = set(flags)
         if _SCANNER.search(event.user_agent):
             event.heuristic_flags.add('SCANNER_UA')
         return event

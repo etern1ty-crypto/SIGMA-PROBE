@@ -1,5 +1,9 @@
 # 🔍 SIGMA-PROBE
 
+[English](README.en.md) · Русский
+
+[Совместимость форматов и ограничения](docs/COMPATIBILITY.md)
+
 <p align="center">
   <strong>Офлайн-анализ access-логов для DevOps, SOC и веб-агентств.</strong><br>
   Превратите сырые Nginx/Apache логи в понятную очередь расследования, проверяемые строки-источники и отчёт для клиента.<br>
@@ -10,9 +14,9 @@
   <img src="https://img.shields.io/badge/version-3.0.0rc1-1766ad?style=flat-square" alt="Version 3.0.0rc1">
   <img src="https://img.shields.io/badge/Python-3.11%2B-1766aa?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/dependencies-0%20(pure%20stdlib)-257349?style=flat-square" alt="Zero Dependencies">
-  <img src="https://img.shields.io/badge/tests-130%20passed-257349?style=flat-square" alt="130 tests passed">
+  <img src="https://img.shields.io/badge/tests-138%20passed-257349?style=flat-square" alt="138 tests passed">
   <img src="https://img.shields.io/badge/privacy-pseudonymized%20HMAC-success?style=flat-square" alt="Privacy First">
-  <img src="https://img.shields.io/badge/license-MIT-1766ad?style=flat-square" alt="MIT License">
+  <img src="https://img.shields.io/badge/license-upstream%20unverified-orange?style=flat-square" alt="Upstream license unverified">
 </p>
 
 ---
@@ -24,6 +28,12 @@
 </p>
 
 > 💡 **Автономные отчёты:** каждый анализ атомарно генерирует три взаимосвязанных представления: интерактивный автономный HTML (без внешних CDN и JS-трекеров), строгий JSON и текстовую сводку `report.txt`.
+
+Рядом с отчётами создаётся `manifest.json` с SHA-256 файлов. Для аутентифицированного манифеста задайте отдельный секрет `SIGMA_PROBE_REPORT_KEY` (не менее 32 байт UTF-8) при анализе и проверке. Проверка готового bundle: `PYTHONPATH=src python3 -m sigma_probe verify-report reports/<run-id>`. Без ключа хеши обнаруживают повреждение файлов, но не подтверждают происхождение отчёта.
+
+После проверки отчёта можно сформировать **черновик** блокировки точного IP из `report.json`: `PYTHONPATH=src python3 -m sigma_probe propose-block reports/<run-id> --ip 203.0.113.10 --backend nginx --expires-at 2099-01-01T00:00:00Z --reason "Reviewed incident"`. Поддерживаются `nginx` и `iptables`; команда только печатает JSON с правилами и откатом, ничего не применяет и не снимает правила по истечении срока. При HMAC-псевдонимизации требуются исходные IP из защищённого локального источника: псевдоним нельзя превратить обратно в IP.
+
+Для закоммиченных тестовых логов доступен [SARIF-экспорт](docs/CLI.md): `PYTHONPATH=src python3 -m sigma_probe export-sarif reports/<run-id> --source-root . --source input-1=examples/access.log > findings.sarif`. Экспорт проверяет хеш файла перед привязкой сигналов к строкам; production-логи не следует загружать в публичный репозиторий.
 
 ---
 
@@ -73,7 +83,7 @@ flowchart LR
 ```bash
 git clone https://github.com/etern1ty-crypto/SIGMA-PROBE.git
 cd SIGMA-PROBE
-python3 -m sigma_probe analyze --config config.example.toml
+PYTHONPATH=src python3 -m sigma_probe analyze --config config.example.toml
 ```
 
 ### Windows (PowerShell)
@@ -108,6 +118,7 @@ INFO sigma_probe.main: Analysis complete: events=56 actors=7 partial=False
   "reports": {
     "html": "reports/20260908T014248Z-1537b38e2c24/report.html",
     "json": "reports/20260908T014248Z-1537b38e2c24/report.json",
+    "manifest": "reports/20260908T014248Z-1537b38e2c24/manifest.json",
     "text": "reports/20260908T014248Z-1537b38e2c24/report.txt"
   },
   "summary": {
@@ -168,12 +179,12 @@ python -m unittest discover -s tests -p "test_*.py"
 ```text
 ........................................................................................................................
 ----------------------------------------------------------------------
-Ran 130 tests in 3.263s
+Ran 138 tests
 
-OK (skipped=3)
+OK
 ```
 
-- **130 тестов**: модульные, граничные случаи, LFI-сценарии, IoC-сопоставление, отчёты и упаковка.
+- **138 тестов**: модульные, граничные случаи, LFI-сценарии, IoC-сопоставление, отчёты и упаковка.
 - Поддержка Windows, macOS и Linux.
 - Сборка в один исполняемый `.pyz`-архив или wheel без компилятора C.
 
@@ -184,16 +195,17 @@ OK (skipped=3)
 | Документ | Описание |
 | :--- | :--- |
 | 📖 [Архитектура движка](docs/ARCHITECTURE.md) | Модель пайплайна, фазы анализа, изоляция профилей сайтов |
-| 🔐 [Политика безопасности и конфиденциальности](docs/SECURITY.md) | Защита от DoS, HMAC-маскирование IP, санитизация HTML |
+| 🔐 [Политика безопасности и конфиденциальности](SECURITY.md) | Защита от DoS, HMAC-маскирование IP, санитизация HTML |
 | 🔍 [Аудит исходного кода](docs/AUDIT.md) | Ревизия 47 критических архитектурных и защитных узлов |
-| 📜 [Спецификация схемы вывода](docs/OUTPUT_SCHEMA.md) | Контракт JSON-отчёта, поля доказательств, ATT&CK mapping |
-| 🛠 [Справочник эвристик и правил](docs/RULES.md) | Настройка весов скоринга, порогов и регулярных выражений |
+| 📜 [Спецификация схемы вывода](docs/REPORT_SCHEMA.md) | Контракт JSON-отчёта, поля доказательств, ATT&CK mapping |
+| 🛠 [Настройка эвристик и правил](docs/CONFIGURATION.md) | Настройка весов скоринга и порогов |
 | ✅ [Протокол валидации](docs/VALIDATION.md) | Матрица протестированных форматов Common/Combined/JSONL |
+| 🧩 [Формат логов Angie/Nginx](examples/angie-nginx-log-format.conf) | Пример JSONL `log_format` для одного сайта |
+| 🧪 [Локальный стенд Juice Shop](examples/lab/README.md) | Изолированный генератор тестового трафика и отчётов |
 | 📝 [Changelog](CHANGELOG.md) | История изменений версии 3.0.0rc1 |
 
 ---
 
 ## 📜 Лицензия
 
-Проект распространяется под открытой лицензией [MIT](LICENSE).  
-Авторские права © 2026 etern1ty-crypto.
+Статус лицензии исходного проекта пока не подтверждён. См. [LICENSE](LICENSE) и [NOTICE](NOTICE) перед публичным распространением или коммерческим использованием.

@@ -9,8 +9,9 @@ from unittest.mock import patch
 
 from sigma_probe.config import PrivacyConfig, ReportingConfig, Settings
 from sigma_probe.main import AnalysisPipeline
-from sigma_probe.pipeline.reporting import ReportingStage, json_text, render_html, render_text
+from sigma_probe.pipeline.reporting import ReportingStage, json_text, render_html, render_text, verify_bundle
 from sigma_probe.privacy import PrivacyProjector
+from sigma_probe.proposals import propose_block
 from sigma_probe.validation import RunInterrupted, SigmaProbeError
 from tests.helpers import ROOT, combined
 
@@ -88,7 +89,7 @@ class ReportTests(unittest.TestCase):
             config = Settings(reporting=ReportingConfig(output_dir=str(Path(directory) / 'reports')))
             result = self.result(config)
             paths = ReportingStage(config).write(result.report)
-            self.assertEqual(set(paths), {'json', 'html', 'text'})
+            self.assertEqual(set(paths), {'json', 'html', 'text', 'manifest'})
             parents = {Path(p).parent for p in paths.values()}
             self.assertEqual(len(parents), 1)
             for p in paths.values():
@@ -98,6 +99,40 @@ class ReportTests(unittest.TestCase):
             if os.name == 'posix':
                 self.assertEqual(next(iter(parents)).stat().st_mode & 0o777, 0o700)
             self.assertEqual(json.loads(Path(paths['json']).read_text(encoding='utf-8'))['summary'], result.report['summary'])
+            self.assertEqual(verify_bundle(next(iter(parents)))['authenticated'], False)
+
+    def test_authenticated_bundle_detects_modification_and_wrong_key(self):
+        key = 'test-report-key-' * 3
+        with tempfile.TemporaryDirectory() as directory:
+            config = Settings(reporting=ReportingConfig(output_dir=directory))
+            paths = ReportingStage(config, key).write(self.result().report)
+            bundle = Path(paths['manifest']).parent
+            original = Path(paths['json']).read_bytes()
+            self.assertTrue(verify_bundle(bundle, key)['authenticated'])
+            with self.assertRaises(SigmaProbeError):
+                verify_bundle(bundle, 'wrong-report-key-' * 3)
+            with self.assertRaises(SigmaProbeError):
+                verify_bundle(bundle)
+            Path(paths['json']).write_text('modified', encoding='utf-8')
+            with self.assertRaises(SigmaProbeError):
+                verify_bundle(bundle, key)
+            Path(paths['json']).write_bytes(original)
+            (bundle / 'unexpected.txt').write_text('extra', encoding='utf-8')
+            with self.assertRaises(SigmaProbeError):
+                verify_bundle(bundle, key)
+
+    def test_block_proposal_requires_report_actor_and_never_applies_rule(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Settings(reporting=ReportingConfig(output_dir=directory))
+            paths = ReportingStage(config).write(self.result().report)
+            bundle = Path(paths['manifest']).parent
+            proposal = propose_block(bundle, ['203.0.113.10', '2001:db8::21'], 'nginx', '2099-01-01T00:00:00Z', 'Reviewed incident')
+            self.assertTrue(proposal['review_required'])
+            self.assertEqual(proposal['proposal'], ['deny 203.0.113.10;', 'deny 2001:db8::21;'])
+            firewall = propose_block(bundle, ['203.0.113.10'], 'iptables', '2099-01-01T00:00:00Z', 'Reviewed incident')
+            self.assertEqual(firewall['rollback'], ['iptables -D INPUT -p tcp -s 203.0.113.10 --dport 443 -j DROP'])
+            with self.assertRaises(SigmaProbeError):
+                propose_block(bundle, ['198.51.100.90'], 'nginx', '2099-01-01T00:00:00Z', 'Missing actor')
 
     def test_renderer_failure_rolls_back_bundle(self):
         with tempfile.TemporaryDirectory() as directory:
