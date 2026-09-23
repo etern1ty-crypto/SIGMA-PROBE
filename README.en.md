@@ -18,7 +18,7 @@ The command prints paths to an HTML dashboard, JSON, text report, and `manifest.
 
 If you set a separate `SIGMA_PROBE_REPORT_KEY` of at least 32 UTF-8 bytes during both analysis and verification, the manifest also has an HMAC. Without that key, hashes detect accidental damage but do not authenticate origin. IP pseudonymization uses a different key, `SIGMA_PROBE_HMAC_KEY`; it is enabled in the command above but is off by default. Query strings are hidden by default, while URL paths may still contain sensitive information.
 
-An [Angie/Nginx JSONL logging example](examples/angie-nginx-log-format.conf) and [local Juice Shop lab](examples/lab/README.md) are available. The lab has not been run in this workspace because Docker is unavailable. See [format compatibility](docs/COMPATIBILITY.md), [architecture](docs/ARCHITECTURE.md), [report schema](docs/REPORT_SCHEMA.md), [production limits](docs/PRODUCTION.md), and [validation notes](docs/VALIDATION.md).
+An [Angie/Nginx JSONL logging example](examples/angie-nginx-log-format.conf) and [local Juice Shop lab](examples/lab/README.md) are available. The lab passed its synthetic Nginx replay in [GitHub Actions](https://github.com/etern1ty-crypto/SIGMA-PROBE/actions/runs/35845259275); Docker is unavailable in this local workspace. See [format compatibility](docs/COMPATIBILITY.md), [architecture](docs/ARCHITECTURE.md), [report schema](docs/REPORT_SCHEMA.md), [production limits](docs/PRODUCTION.md), and [validation notes](docs/VALIDATION.md).
 
 For reviewed exact-IP responses, `propose-block` can print Nginx or iptables rules and rollback text from a report bundle. It never applies the rules; expiry is metadata and must be enforced by the operator's workflow.
 
