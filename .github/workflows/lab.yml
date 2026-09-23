@@ -1,4 +1,4 @@
-name: Manual local attack lab
+name: Manual compatibility replay
 on:
   workflow_dispatch:
 permissions:
@@ -44,3 +44,34 @@ jobs:
       - name: Stop lab
         if: always()
         run: docker compose -f examples/lab/compose.yml --profile traffic --profile analyze down
+  distributions:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: Astra Linux 1.8, image: 'registry.astralinux.ru/library/astra/ubi18-python311:latest'}
+          - {name: RED OS 8, image: 'registry.red-soft.ru/ubi8/python-313-minimal:3.13-260915'}
+          - {name: ALT Linux p11, image: 'registry.altlinux.org/p11/python:3.12.7'}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Build stdlib zipapp
+        run: python scripts/build_dist.py
+      - name: Analyze and verify inside ${{ matrix.name }}
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          docker run --pull always --rm --network none --read-only \
+            --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 \
+            --user 10001:10001 --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            -v "$PWD/dist:/dist:ro" -v "$PWD/examples:/logs:ro" \
+            "$IMAGE" sh -ec '
+              cat /etc/os-release
+              python3 --version
+              python3 -I -S /dist/sigma-probe.pyz analyze -i /logs/access.log -o /tmp/reports --format json
+              python3 -I -S /dist/sigma-probe.pyz verify-report /tmp/reports/*
+            '
+          docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE"
