@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "dataset_kind": "synthetic",
+  "cases": [
+    {
+      "log": "access.log",
+      "labels": {
+        "192.0.2.44": "benign",
+        "192.0.2.60": "attack",
+        "198.51.100.20": "benign",
+        "198.51.100.21": "benign",
+        "2001:db8::21": "benign",
+        "203.0.113.10": "attack",
+        "203.0.113.11": "attack"
+      }
+    }
+  ]
+}

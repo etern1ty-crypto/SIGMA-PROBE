@@ -200,6 +200,7 @@ OK
 | 📜 [Спецификация схемы вывода](docs/REPORT_SCHEMA.md) | Контракт JSON-отчёта, поля доказательств, ATT&CK mapping |
 | 🛠 [Настройка эвристик и правил](docs/CONFIGURATION.md) | Настройка весов скоринга и порогов |
 | ✅ [Протокол валидации](docs/VALIDATION.md) | Матрица протестированных форматов Common/Combined/JSONL |
+| 📏 [Оценка детекции](docs/EVALUATION.md) | Локальный actor-level расчёт precision, recall и false-positive rate по независимой разметке |
 | 🧩 [Формат логов Angie/Nginx](examples/angie-nginx-log-format.conf) | Пример JSONL `log_format` для одного сайта |
 | 🧪 [Локальный стенд Juice Shop](examples/lab/README.md) | Изолированный генератор тестового трафика и отчётов |
 | 📝 [Changelog](CHANGELOG.md) | История изменений версии 3.0.0rc1 |

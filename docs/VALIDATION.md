@@ -71,10 +71,12 @@ python3 scripts/build_dist.py
 
 - [PR #6](https://github.com/etern1ty-crypto/SIGMA-PROBE/pull/6): Python 3.11, 3.12 и 3.13, `unittest`, `pytest`, сборка wheel/sdist/zipapp и контейнерный smoke test прошли.
 - [Docker lab](https://github.com/etern1ty-crypto/SIGMA-PROBE/actions/runs/35845259275): `docker compose config`, Nginx `-t`, синтетический replay через Juice Shop, анализ 15 событий, один high actor и проверка bundle прошли. Workflow теперь также явно проверяет количество событий, high actor и отсутствие невалидных строк.
+- [Матрица совместимости](https://github.com/etern1ty-crypto/SIGMA-PROBE/actions/runs/35846770795): повторный replay прошёл с Nginx и реальным Angie 1.12.1; zipapp выполнил анализ и проверку bundle внутри официальных контейнеров Astra Linux 1.8, РЕД ОС 8 и ALT Linux p11 без сети и записи в корневую файловую систему. Это проверки конкретных контейнерных образов, не нативных хостов.
+- [Внешний тестовый набор AIT-LDS V2.1](EVALUATION.md): 8 516 принятых Apache-запросов, 6 акторов, один основной атакующий актор обнаружен; actor-level recall зависит от политики переноса построчных меток (1/3 либо 1/2). Этого недостаточно для заявления о качестве на production-трафике.
 
 ## Что НЕ проверено
 
-- Локальный Docker, реальный бинарник Angie и целевые российские Linux-дистрибутивы; успешный Nginx lab в GitHub Actions не подтверждает их совместимость.
+- Локальный Docker и нативные установки Angie/Астра/РЕД ОС/ALT Linux на целевых хостах; контейнерные прогоны не подтверждают политики безопасности или сертифицированные редакции хостов.
 - Windows/macOS: локально выполнен Python 3.14.7/Linux; CI подтверждает 3.11–3.13 на Ubuntu.
 - Ruff, mypy, pip-audit и актуальная база advisories: недоступны без установки/сети. Простая AST-проверка не заменяет эти инструменты.
 - Pytest локально не установлен; в CI он выполнил существующий `unittest.TestCase` набор после установки dev requirements.

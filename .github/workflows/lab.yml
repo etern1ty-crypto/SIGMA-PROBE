@@ -1,13 +1,22 @@
-name: Manual local attack lab
+name: Manual compatibility replay
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   replay:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {server: nginx, image: 'nginx:1.29-alpine', config: '/etc/nginx/nginx.conf', binary: nginx}
+          - {server: angie, image: 'docker.angie.software/angie:1.12.1-minimal', config: '/etc/angie/angie.conf', binary: angie}
     env:
       PYTHONPATH: src
+      LAB_PROXY_IMAGE: ${{ matrix.image }}
+      LAB_PROXY_CONFIG: ${{ matrix.config }}
+      LAB_PROXY_BINARY: ${{ matrix.binary }}
     steps:
       - uses: actions/checkout@v5
       - name: Validate Compose
@@ -17,7 +26,7 @@ jobs:
           mkdir -m 700 -p examples/lab/reports
           export LAB_UID="$(id -u)" LAB_GID="$(id -g)"
           docker compose -f examples/lab/compose.yml up -d proxy
-          docker compose -f examples/lab/compose.yml exec -T proxy nginx -t
+          docker compose -f examples/lab/compose.yml exec -T proxy "$LAB_PROXY_BINARY" -t
           docker compose -f examples/lab/compose.yml --profile traffic run --rm traffic
           docker compose -f examples/lab/compose.yml --profile analyze run --rm analyzer
           python - <<'PY'
@@ -35,3 +44,34 @@ jobs:
       - name: Stop lab
         if: always()
         run: docker compose -f examples/lab/compose.yml --profile traffic --profile analyze down
+  distributions:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: Astra Linux 1.8, image: 'registry.astralinux.ru/library/astra/ubi18-python311:latest'}
+          - {name: RED OS 8, image: 'registry.red-soft.ru/ubi8/python-313-minimal:3.13-260915'}
+          - {name: ALT Linux p11, image: 'registry.altlinux.org/p11/python:3.12.7'}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Build stdlib zipapp
+        run: python scripts/build_dist.py
+      - name: Analyze and verify inside ${{ matrix.name }}
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          docker run --pull always --rm --network none --read-only \
+            --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 \
+            --user 10001:10001 --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            -v "$PWD/dist:/dist:ro" -v "$PWD/examples:/logs:ro" \
+            "$IMAGE" sh -ec '
+              cat /etc/os-release
+              python3 --version
+              python3 -I -S /dist/sigma-probe.pyz analyze -i /logs/access.log -o /tmp/reports --format json
+              python3 -I -S /dist/sigma-probe.pyz verify-report /tmp/reports/*
+            '
+          docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE"
